@@ -39,6 +39,13 @@ export const api = {
   sites: () => request("/admin/sites"),
   presence: (employeeId, day) =>
     request(`/admin/presence/${employeeId}${day ? `?day=${day}` : ""}`),
+
+  // ── Employee management ──
+  employees: () => request("/admin/employees"),
+  createEmployee: (emp) => request("/auth/employees", { method: "POST", body: emp }),
+  deactivateEmployee: (id) => request(`/admin/employees/${id}/deactivate`, { method: "PATCH" }),
+  activateEmployee: (id) => request(`/admin/employees/${id}/activate`, { method: "PATCH" }),
+  resetDevice: (id) => request(`/auth/reset-device/${id}`, { method: "POST" }),
   createSite: (site) => request("/admin/sites", { method: "POST", body: site }),
   deleteSite: (id) => request(`/admin/sites/${id}`, { method: "DELETE" }),
   resetDevice: (id) => request(`/auth/reset-device/${id}`, { method: "POST" }),

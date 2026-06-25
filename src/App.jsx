@@ -2,7 +2,7 @@
 import { useState, useEffect, useCallback } from "react";
 import {
   MapPin, Users, Clock, AlertTriangle, ShieldAlert,
-  Download, LogOut, RefreshCw, Trash2, Plus, Activity,
+  Download, LogOut, RefreshCw, Trash2, Plus, Activity, UserPlus, Smartphone,
 } from "lucide-react";
 import { api, clearToken, getToken } from "./services/api";
 import { C, fmt, fmtDur, friendlyFlag, Card, Tag, inp } from "./components/ui";
@@ -27,6 +27,60 @@ export default function App() {
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState("");
   const [presenceFor, setPresenceFor] = useState(null); // {id, data}
+  const [employees, setEmployees] = useState([]);
+  const [newEmp, setNewEmp] = useState({ name: "", employee_code: "", pin: "", job_title: "" });
+  const [empMsg, setEmpMsg] = useState("");
+
+  async function loadEmployees() {
+    try {
+      setEmployees(await api.employees());
+    } catch (e) {
+      setError("Could not load employees: " + e.message);
+    }
+  }
+
+  async function addEmployee() {
+    setEmpMsg("");
+    if (!newEmp.name.trim() || !newEmp.employee_code.trim() || newEmp.pin.length < 4) {
+      setEmpMsg("Name, code, and a 4-6 digit PIN are required.");
+      return;
+    }
+    try {
+      const body = {
+        name: newEmp.name.trim(),
+        employee_code: newEmp.employee_code.trim().toUpperCase(),
+        pin: newEmp.pin,
+        role: "employee",
+      };
+      if (newEmp.job_title.trim()) body.job_title = newEmp.job_title.trim();
+      await api.createEmployee(body);
+      setNewEmp({ name: "", employee_code: "", pin: "", job_title: "" });
+      setEmpMsg("✓ Employee added");
+      loadEmployees();
+    } catch (e) {
+      setEmpMsg("✗ " + e.message);
+    }
+  }
+
+  async function toggleEmployee(emp) {
+    try {
+      if (emp.active) await api.deactivateEmployee(emp.id);
+      else await api.activateEmployee(emp.id);
+      loadEmployees();
+    } catch (e) {
+      setError(e.message);
+    }
+  }
+
+  async function resetDevice(id) {
+    try {
+      await api.resetDevice(id);
+      setEmpMsg("✓ Device reset — they can log in on a new phone");
+      loadEmployees();
+    } catch (e) {
+      setError(e.message);
+    }
+  }
 
   async function viewPresence(empId, empName) {
     try {
@@ -68,6 +122,11 @@ export default function App() {
   }, [range.start, range.end]);
 
   useEffect(() => { if (employee) loadAll(); }, [employee, loadAll]);
+
+  // Load employees when the Employees tab opens
+  useEffect(() => {
+    if (employee && tab === "employees") loadEmployees();
+  }, [employee, tab]);
 
   // Auto-refresh live locations every 10s on the overview tab
   useEffect(() => {
@@ -135,6 +194,7 @@ export default function App() {
   const tabs = [
     { id: "overview", label: "Live Map", icon: MapPin },
     { id: "logs", label: "Attendance", icon: Clock },
+    { id: "employees", label: "Employees", icon: Users },
     { id: "alerts", label: "Alerts", icon: AlertTriangle },
     { id: "sites", label: "Job Sites", icon: Activity },
   ];
@@ -348,6 +408,76 @@ export default function App() {
           </div>
         )}
 
+        {/* EMPLOYEES */}
+        {tab === "employees" && (
+          <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+            <Card>
+              <h3 style={{ ...h3, display: "flex", alignItems: "center", gap: 8 }}>
+                <UserPlus size={17} /> Add Employee
+              </h3>
+              <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr 1fr 1fr auto", gap: 8, alignItems: "center" }}>
+                <input placeholder="Full name" value={newEmp.name}
+                  onChange={(e) => setNewEmp({ ...newEmp, name: e.target.value })} style={inp} />
+                <input placeholder="Code (e.g. E001)" value={newEmp.employee_code}
+                  onChange={(e) => setNewEmp({ ...newEmp, employee_code: e.target.value })} style={inp} />
+                <input placeholder="Job title" value={newEmp.job_title}
+                  onChange={(e) => setNewEmp({ ...newEmp, job_title: e.target.value })} style={inp} />
+                <input placeholder="PIN (4-6 digits)" value={newEmp.pin}
+                  onChange={(e) => setNewEmp({ ...newEmp, pin: e.target.value.replace(/\D/g, "") })}
+                  maxLength={6} style={inp} />
+                <button onClick={addEmployee} style={{ ...btnPrimary, padding: "9px 12px" }}>
+                  <Plus size={15} /> Add
+                </button>
+              </div>
+              {empMsg && (
+                <p style={{ fontSize: 13, marginTop: 10, color: empMsg.startsWith("✓") ? C.green : C.red }}>{empMsg}</p>
+              )}
+              <p style={{ color: C.muted, fontSize: 12, marginTop: 8 }}>
+                The employee logs into the phone app with their code + PIN. Their phone binds on first login.
+              </p>
+            </Card>
+
+            <Card>
+              <h3 style={h3}>All Employees ({employees.length})</h3>
+              {employees.length === 0 && <p style={{ color: C.muted, fontSize: 13 }}>No employees yet. Add your first one above.</p>}
+              {employees.map((e) => (
+                <div key={e.id} style={rowStyle}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                    <div style={{ ...avatar, opacity: e.active ? 1 : 0.4 }}>
+                      {e.name.split(" ").map((n) => n[0]).join("").slice(0, 2)}
+                    </div>
+                    <div>
+                      <div style={{ color: C.text, fontSize: 14, fontWeight: 600 }}>
+                        {e.name}
+                        {e.role === "admin" && <span style={{ ...tagInline, background: C.accentLo, color: C.accent }}>admin</span>}
+                        {!e.active && <span style={{ ...tagInline, background: C.red + "22", color: C.red }}>inactive</span>}
+                      </div>
+                      <div style={{ color: C.muted, fontSize: 12 }}>
+                        {e.employee_code}{e.job_title ? ` · ${e.job_title}` : ""}
+                        {e.has_device && <span style={{ color: C.green }}> · 📱 device bound</span>}
+                      </div>
+                    </div>
+                  </div>
+                  <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                    {e.has_device && (
+                      <button onClick={() => resetDevice(e.id)} title="Let them switch phones"
+                        style={{ ...btnSecondary, padding: "5px 9px", fontSize: 12, gap: 4 }}>
+                        <Smartphone size={13} /> Reset
+                      </button>
+                    )}
+                    {e.role !== "admin" && (
+                      <button onClick={() => toggleEmployee(e)}
+                        style={{ ...btnSecondary, padding: "5px 9px", fontSize: 12, color: e.active ? C.red : C.green }}>
+                        {e.active ? "Deactivate" : "Activate"}
+                      </button>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </Card>
+          </div>
+        )}
+
         {/* SITES */}
         {tab === "sites" && (
           <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
@@ -389,3 +519,4 @@ const avatar = { width: 36, height: 36, borderRadius: "50%", background: C.accen
 const btnSecondary = { background: C.surface, border: `1px solid ${C.border}`, borderRadius: 8, padding: "8px 12px", color: C.text, cursor: "pointer", display: "flex", alignItems: "center", gap: 6, fontSize: 13 };
 const btnPrimary = { background: C.accent, color: "#fff", border: "none", borderRadius: 8, padding: "7px 14px", fontSize: 13, fontWeight: 600, cursor: "pointer", display: "flex", alignItems: "center", gap: 6 };
 const dateInp = { background: C.surface, border: `1px solid ${C.border}`, borderRadius: 6, padding: "6px 8px", color: C.text, fontSize: 12 };
+const tagInline = { fontSize: 10, fontWeight: 600, borderRadius: 4, padding: "1px 6px", marginLeft: 8 };
