@@ -2,11 +2,12 @@
 import { useState, useEffect, useCallback } from "react";
 import {
   MapPin, Users, Clock, AlertTriangle, ShieldAlert,
-  Download, LogOut, RefreshCw, Trash2, Plus, Activity, UserPlus, Smartphone,
+  Download, LogOut, RefreshCw, Trash2, Plus, Activity, UserPlus, Smartphone, Navigation,
 } from "lucide-react";
 import { api, clearToken, getToken } from "./services/api";
 import { C, fmt, fmtDur, friendlyFlag, Card, Tag, inp } from "./components/ui";
 import LiveMap from "./components/LiveMap";
+import RadiusMap from "./components/RadiusMap";
 import Login from "./components/Login";
 
 const todayStr = () => new Date().toISOString().slice(0, 10);
@@ -154,6 +155,35 @@ export default function App() {
     } catch (e) {
       setError("Export failed: " + e.message);
     }
+  }
+
+  const [locating, setLocating] = useState(false);
+
+  function useMyLocation() {
+    if (!navigator.geolocation) {
+      setError("This device/browser doesn't support location.");
+      return;
+    }
+    setLocating(true);
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        setNewSite((s) => ({
+          ...s,
+          latitude: pos.coords.latitude.toFixed(6),
+          longitude: pos.coords.longitude.toFixed(6),
+        }));
+        setLocating(false);
+      },
+      (err) => {
+        setLocating(false);
+        setError(
+          err.code === 1
+            ? "Location permission denied. Allow location access and try again."
+            : "Couldn't get your location. Try again outdoors or check GPS."
+        );
+      },
+      { enableHighAccuracy: true, timeout: 10000 }
+    );
   }
 
   async function addSite() {
@@ -490,7 +520,41 @@ export default function App() {
                 <input placeholder="Radius m" value={newSite.radius_m} onChange={(e) => setNewSite({ ...newSite, radius_m: e.target.value })} style={inp} />
                 <button onClick={addSite} style={{ ...btnPrimary, padding: "9px 12px" }}><Plus size={15} /></button>
               </div>
-              <p style={{ color: C.muted, fontSize: 12, marginTop: 10 }}>Tip: get coordinates by right-clicking a spot in Google Maps.</p>
+              <button onClick={useMyLocation} disabled={locating}
+                style={{ ...btnSecondary, marginTop: 10, justifyContent: "center", width: "100%", opacity: locating ? 0.6 : 1 }}>
+                <Navigation size={14} /> {locating ? "Getting your location…" : "Use my current location"}
+              </button>
+
+              {/* Live radius slider */}
+              <div style={{ marginTop: 14 }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+                  <span style={{ color: C.text, fontSize: 13, fontWeight: 600 }}>Radius</span>
+                  <span style={{ color: C.accent, fontSize: 14, fontWeight: 700 }}>{newSite.radius_m || 150} m</span>
+                </div>
+                <input type="range" min="50" max="1000" step="10"
+                  value={newSite.radius_m || 150}
+                  onChange={(e) => setNewSite({ ...newSite, radius_m: e.target.value })}
+                  style={{ width: "100%", accentColor: C.accent }} />
+                <div style={{ display: "flex", justifyContent: "space-between", color: C.muted, fontSize: 11 }}>
+                  <span>50 m (tight)</span><span>1000 m (wide)</span>
+                </div>
+              </div>
+
+              {/* Interactive map */}
+              <div style={{ marginTop: 14 }}>
+                <RadiusMap
+                  lat={newSite.latitude ? parseFloat(newSite.latitude) : null}
+                  lng={newSite.longitude ? parseFloat(newSite.longitude) : null}
+                  radius={parseFloat(newSite.radius_m) || 150}
+                  onMarkerMove={(lat, lng) =>
+                    setNewSite((s) => ({ ...s, latitude: lat.toFixed(6), longitude: lng.toFixed(6) }))
+                  }
+                />
+              </div>
+
+              <p style={{ color: C.muted, fontSize: 12, marginTop: 10 }}>
+                Tap "Use my current location" while standing at the site, then adjust the slider until the blue circle covers your whole work area (building + parking). 200–300 m suits most showrooms.
+              </p>
             </Card>
             <Card>
               <h3 style={h3}>Configured Sites ({sites.length})</h3>
