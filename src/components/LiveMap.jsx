@@ -1,64 +1,82 @@
-// Canvas-based live location map with geofence rings.
+// Live employee map on a REAL map (Leaflet/OpenStreetMap).
+// Employees appear at their actual GPS coordinates; job sites show as
+// geofence circles. Replaces the old abstract-grid canvas version.
 import { useEffect, useRef } from "react";
 import { C } from "./ui";
 
 export default function LiveMap({ live, sites }) {
-  const ref = useRef(null);
-  useEffect(() => {
-    const cv = ref.current;
-    if (!cv) return;
-    const ctx = cv.getContext("2d");
-    const W = cv.width, H = cv.height;
-    ctx.fillStyle = "#141824"; ctx.fillRect(0, 0, W, H);
-    ctx.strokeStyle = "#1E2740"; ctx.lineWidth = 1;
-    for (let i = 0; i < W; i += 40) { ctx.beginPath(); ctx.moveTo(i, 0); ctx.lineTo(i, H); ctx.stroke(); }
-    for (let j = 0; j < H; j += 40) { ctx.beginPath(); ctx.moveTo(0, j); ctx.lineTo(W, j); ctx.stroke(); }
+  const mapRef = useRef(null);
+  const mapObj = useRef(null);
+  const layerRef = useRef(null);
 
-    const pts = (live || []).filter((l) => l.location);
-    if (!pts.length) {
-      ctx.fillStyle = C.muted; ctx.font = "14px sans-serif"; ctx.textAlign = "center";
-      ctx.fillText("No active employees", W / 2, H / 2);
-      return;
-    }
-    const allLat = [...pts.map((p) => p.location.lat), ...(sites || []).map((s) => s.latitude)];
-    const allLng = [...pts.map((p) => p.location.lng), ...(sites || []).map((s) => s.longitude)];
-    const minLat = Math.min(...allLat), maxLat = Math.max(...allLat);
-    const minLng = Math.min(...allLng), maxLng = Math.max(...allLng);
-    const pad = 70;
-    const px = (lng) => pad + ((lng - minLng) / (maxLng - minLng || 1)) * (W - pad * 2);
-    const py = (lat) => H - pad - ((lat - minLat) / (maxLat - minLat || 1)) * (H - pad * 2);
+  useEffect(() => {
+    if (!window.L || !mapRef.current || mapObj.current) return;
+    const L = window.L;
+    const map = L.map(mapRef.current, { zoomControl: true }).setView([30.9010, 75.8573], 13);
+    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+      maxZoom: 19,
+      attribution: "© OpenStreetMap",
+    }).addTo(map);
+    mapObj.current = map;
+    layerRef.current = L.layerGroup().addTo(map);
+    setTimeout(() => map.invalidateSize(), 200);
+  }, []);
+
+  useEffect(() => {
+    const L = window.L;
+    if (!L || !mapObj.current || !layerRef.current) return;
+    const map = mapObj.current;
+    const group = layerRef.current;
+    group.clearLayers();
+
+    const bounds = [];
 
     (sites || []).forEach((s) => {
-      const x = px(s.longitude), y = py(s.latitude);
-      ctx.beginPath(); ctx.arc(x, y, 34, 0, Math.PI * 2);
-      ctx.fillStyle = "rgba(34,197,94,0.08)"; ctx.fill();
-      ctx.strokeStyle = "rgba(34,197,94,0.4)"; ctx.setLineDash([4, 4]); ctx.stroke(); ctx.setLineDash([]);
-      ctx.fillStyle = C.green; ctx.font = "10px sans-serif"; ctx.textAlign = "center";
-      ctx.fillText(s.name, x, y + 48);
+      L.circle([s.latitude, s.longitude], {
+        radius: s.radius_m || 150,
+        color: C.green, fillColor: C.green, fillOpacity: 0.08,
+        weight: 1.5, dashArray: "4 4",
+      }).addTo(group).bindPopup("<b>" + s.name + "</b><br/>" + (s.radius_m || 150) + "m radius");
+      bounds.push([s.latitude, s.longitude]);
     });
 
-    pts.forEach((p) => {
-      const x = px(p.location.lng), y = py(p.location.lat);
-      const flagged = p.flags?.length > 0;
-      const col = flagged ? C.amber : C.accent;
-      ctx.beginPath(); ctx.arc(x, y, 16, 0, Math.PI * 2);
-      ctx.fillStyle = flagged ? "rgba(245,158,11,0.15)" : "rgba(79,142,247,0.15)"; ctx.fill();
-      ctx.beginPath(); ctx.arc(x, y, 10, 0, Math.PI * 2);
-      ctx.fillStyle = col; ctx.fill();
-      const initials = p.employee_name.split(" ").map((n) => n[0]).join("");
-      ctx.fillStyle = "#fff"; ctx.font = "bold 9px sans-serif"; ctx.textAlign = "center";
-      ctx.fillText(initials, x, y + 3);
-      const name = p.employee_name.split(" ")[0];
-      ctx.fillStyle = C.surface; ctx.strokeStyle = C.border;
-      const tw = ctx.measureText(name).width + 12;
-      ctx.fillRect(x - tw / 2, y - 32, tw, 17); ctx.strokeRect(x - tw / 2, y - 32, tw, 17);
-      ctx.fillStyle = C.text; ctx.font = "10px sans-serif";
-      ctx.fillText(name, x, y - 20);
+    const points = (live || []).filter((p) => p.location);
+    points.forEach((p) => {
+      const flagged = p.flags && p.flags.length > 0;
+      const color = flagged ? C.amber : C.accent;
+      const initials = p.employee_name.split(" ").map((n) => n[0]).join("").slice(0, 2);
+      const icon = L.divIcon({
+        html: '<div style="background:' + color + ';width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700;font-size:11px;border:3px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,0.5)">' + initials + '</div>',
+        className: "", iconSize: [32, 32], iconAnchor: [16, 16],
+      });
+      let t = "";
+      if (p.clock_in) {
+        const raw = /[zZ]|[+-]\d\d:?\d\d$/.test(p.clock_in) ? p.clock_in : p.clock_in + "Z";
+        t = new Date(raw).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+      }
+      L.marker([p.location.lat, p.location.lng], { icon })
+        .addTo(group)
+        .bindPopup("<b>" + p.employee_name + "</b><br/>In at " + t + (flagged ? "<br/>⚠ " + p.flags[0] : ""));
+      bounds.push([p.location.lat, p.location.lng]);
     });
+
+    if (bounds.length === 1) {
+      map.setView(bounds[0], 16);
+    } else if (bounds.length > 1) {
+      map.fitBounds(bounds, { padding: [40, 40], maxZoom: 17 });
+    }
   }, [live, sites]);
 
+  const activeCount = (live || []).filter((p) => p.location).length;
+
   return (
-    <canvas ref={ref} width={620} height={320}
-      style={{ width: "100%", height: "auto", borderRadius: 10, border: `1px solid ${C.border}` }} />
+    <div>
+      <div ref={mapRef} style={{ width: "100%", height: 320, borderRadius: 10, border: "1px solid " + C.border }} />
+      {activeCount === 0 && (
+        <p style={{ color: C.muted, fontSize: 13, textAlign: "center", marginTop: 8 }}>
+          No employees clocked in right now — pins appear here when they do.
+        </p>
+      )}
+    </div>
   );
 }
