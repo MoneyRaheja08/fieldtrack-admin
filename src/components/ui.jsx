@@ -5,8 +5,20 @@ export const C = {
   amber: "#F59E0B", text: "#E8ECF4", muted: "#6B7A9F",
 };
 
-export const fmt = (t) =>
-  t ? new Date(t).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "—";
+// Parse a timestamp as UTC even if the backend omitted the trailing 'Z'.
+const asUTC = (t) => {
+  if (!t) return null;
+  // If it's an ISO string without timezone info, append Z to mark it UTC
+  if (typeof t === "string" && !/[zZ]|[+-]\d{2}:?\d{2}$/.test(t)) {
+    t = t + "Z";
+  }
+  return new Date(t);
+};
+
+export const fmt = (t) => {
+  const d = asUTC(t);
+  return d ? d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "—";
+};
 export const fmtDur = (m) =>
   m != null ? `${Math.floor(m / 60)}h ${m % 60}m` : "active";
 
