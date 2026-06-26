@@ -43,7 +43,8 @@ export default function LiveMap({ live, sites }) {
     const points = (live || []).filter((p) => p.location);
     points.forEach((p) => {
       const flagged = p.flags && p.flags.length > 0;
-      const color = flagged ? C.amber : C.accent;
+      const away = p.on_site === false;
+      const color = flagged ? C.amber : away ? C.red : C.accent;
       const initials = p.employee_name.split(" ").map((n) => n[0]).join("").slice(0, 2);
       const icon = L.divIcon({
         html: '<div style="background:' + color + ';width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700;font-size:11px;border:3px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,0.5)">' + initials + '</div>',
@@ -54,9 +55,10 @@ export default function LiveMap({ live, sites }) {
         const raw = /[zZ]|[+-]\d\d:?\d\d$/.test(p.clock_in) ? p.clock_in : p.clock_in + "Z";
         t = new Date(raw).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
       }
+      const statusLine = away ? "<br/><span style='color:#EF4444'>● Away from site</span>" : "<br/><span style='color:#22C55E'>● On site</span>";
       L.marker([p.location.lat, p.location.lng], { icon })
         .addTo(group)
-        .bindPopup("<b>" + p.employee_name + "</b><br/>In at " + t + (flagged ? "<br/>⚠ " + p.flags[0] : ""));
+        .bindPopup("<b>" + p.employee_name + "</b><br/>In at " + t + statusLine + (flagged ? "<br/>⚠ " + p.flags[0] : ""));
       bounds.push([p.location.lat, p.location.lng]);
     });
 
