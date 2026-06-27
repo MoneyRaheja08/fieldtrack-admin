@@ -1,0 +1,12 @@
+{
+  "expo": {
+    "extra": {
+      "eas": {
+        "projectId": "885b036f-db4a-43a2-aa78-2fbb7bcf0902"
+      }
+    },
+    "android": {
+      "package": "com.money08.fieldtrackadmin"
+    }
+  }
+}
