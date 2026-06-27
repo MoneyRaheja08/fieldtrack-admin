@@ -150,7 +150,7 @@ export default function App() {
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = `attendance_${range.start}_${range.end}.csv`;
+      a.download = `fieldtrack_report_${range.start}_to_${range.end}.xlsx`;
       a.click();
       URL.revokeObjectURL(url);
     } catch (e) {
@@ -376,7 +376,7 @@ export default function App() {
                 <input type="date" value={range.end} onChange={(e) => setRange({ ...range, end: e.target.value })} style={dateInp} />
                 <button onClick={loadAll} style={{ ...btnSecondary, padding: "7px 12px" }}>Apply</button>
                 <button onClick={exportCsv} style={btnPrimary}>
-                  <Download size={14} /> CSV
+                  <Download size={14} /> Excel Report
                 </button>
               </div>
             </div>
