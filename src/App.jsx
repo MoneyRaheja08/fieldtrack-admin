@@ -31,6 +31,7 @@ export default function App() {
   const [employees, setEmployees] = useState([]);
   const [newEmp, setNewEmp] = useState({ name: "", employee_code: "", pin: "", job_title: "" });
   const [empMsg, setEmpMsg] = useState("");
+  const [tileView, setTileView] = useState(null); // {key, label, color, list}
 
   async function loadEmployees() {
     try {
@@ -230,13 +231,19 @@ export default function App() {
   ];
 
   const stats = [
-    { label: "Active Now", value: dash?.active_now, color: C.green, icon: Users },
-    { label: "Present", value: dash?.present_today, color: C.accent, icon: Clock },
-    { label: "Absent", value: dash?.absent_today, color: C.red, icon: Users },
-    { label: "Late", value: dash?.late_today, color: C.amber, icon: Clock },
-    { label: "Flagged", value: dash?.flagged_today, color: C.amber, icon: AlertTriangle },
-    { label: "Blocked", value: dash?.blocked_attempts_today, color: C.red, icon: ShieldAlert },
+    { label: "Active Now", value: dash?.active_now, color: C.green, icon: Users, key: "active" },
+    { label: "Present", value: dash?.present_today, color: C.accent, icon: Clock, key: "present" },
+    { label: "Absent", value: dash?.absent_today, color: C.red, icon: Users, key: "absent" },
+    { label: "Late", value: dash?.late_today, color: C.amber, icon: Clock, key: "late" },
+    { label: "Flagged", value: dash?.flagged_today, color: C.amber, icon: AlertTriangle, key: "flagged" },
+    { label: "Blocked", value: dash?.blocked_attempts_today, color: C.red, icon: ShieldAlert, key: "blocked_attempts" },
   ];
+
+  // Which detail list to show in the popup (null = closed)
+  function openTile(key, label, color) {
+    if (!alerts) return;
+    setTileView({ key, label, color, list: alerts[key] || [] });
+  }
 
   return (
     <div style={{ minHeight: "100vh", background: C.bg, fontFamily: "Inter, system-ui, sans-serif", padding: "20px 16px" }}>
@@ -269,10 +276,12 @@ export default function App() {
         {/* Stat cards */}
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(120px, 1fr))", gap: 12, marginBottom: 18 }}>
           {stats.map((s) => (
-            <Card key={s.label} style={{ padding: 14, textAlign: "center" }}>
-              <s.icon size={16} color={s.color} style={{ marginBottom: 4 }} />
-              <div style={{ color: s.color, fontSize: 24, fontWeight: 700 }}>{s.value ?? "—"}</div>
-              <div style={{ color: C.muted, fontSize: 11 }}>{s.label}</div>
+            <Card key={s.label} style={{ padding: 14, textAlign: "center", cursor: "pointer" }}>
+              <div onClick={() => openTile(s.key, s.label, s.color)}>
+                <s.icon size={16} color={s.color} style={{ marginBottom: 4 }} />
+                <div style={{ color: s.color, fontSize: 24, fontWeight: 700 }}>{s.value ?? "—"}</div>
+                <div style={{ color: C.muted, fontSize: 11 }}>{s.label}</div>
+              </div>
             </Card>
           ))}
         </div>
@@ -576,6 +585,39 @@ export default function App() {
           </div>
         )}
       </div>
+
+      {/* Tile detail popup */}
+      {tileView && (
+        <div onClick={() => setTileView(null)}
+          style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 100, padding: 16 }}>
+          <div onClick={(e) => e.stopPropagation()}
+            style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 14, padding: 20, maxWidth: 420, width: "100%", maxHeight: "70vh", overflowY: "auto" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
+              <h3 style={{ color: tileView.color, fontSize: 16, margin: 0 }}>
+                {tileView.label} ({tileView.list.length})
+              </h3>
+              <button onClick={() => setTileView(null)}
+                style={{ background: "transparent", border: "none", color: C.muted, fontSize: 20, cursor: "pointer", lineHeight: 1 }}>×</button>
+            </div>
+            {tileView.list.length === 0 && <p style={{ color: C.muted, fontSize: 13 }}>Nobody in this list right now.</p>}
+            {tileView.list.map((item, i) => (
+              <div key={i} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 0", borderBottom: `1px solid ${C.border}`, fontSize: 14 }}>
+                <span style={{ color: C.text }}>
+                  {item.name}
+                  {item.code && <span style={{ color: C.muted, fontSize: 12 }}> · {item.code}</span>}
+                </span>
+                <span style={{ color: C.muted, fontSize: 12 }}>
+                  {item.reason ? friendlyFlag(item.reason)
+                    : item.flags ? friendlyFlag(item.flags[0])
+                    : item.clock_in ? `in ${fmt(item.clock_in)}${item.clock_out ? ` → ${fmt(item.clock_out)}` : ""}`
+                    : ""}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       <style>{`@keyframes spin{from{transform:rotate(0)}to{transform:rotate(360deg)}} input::placeholder{color:${C.muted}} input[type=date]{color-scheme:dark}`}</style>
     </div>
   );
