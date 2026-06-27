@@ -313,8 +313,12 @@ export default function App() {
                         style={{ ...btnSecondary, padding: "5px 10px", fontSize: 12 }}>
                         Time away
                       </button>
-                      {p.flags?.length > 0
+                      {p.signal_lost
+                        ? <Tag color={C.red}>⚠ Signal lost {p.minutes_since_update ? `(${p.minutes_since_update}m)` : ""}</Tag>
+                        : p.flags?.length > 0
                         ? <Tag color={C.amber}>⚠ {friendlyFlag(p.flags[0])}</Tag>
+                        : p.on_site === false
+                        ? <Tag color={C.red}>● Away</Tag>
                         : <Tag color={C.green}>● Active</Tag>}
                     </div>
                   </div>
