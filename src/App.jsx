@@ -32,6 +32,8 @@ export default function App() {
   const [newEmp, setNewEmp] = useState({ name: "", employee_code: "", pin: "", job_title: "" });
   const [empMsg, setEmpMsg] = useState("");
   const [tileView, setTileView] = useState(null); // {key, label, color, list}
+  const [payrollData, setPayrollData] = useState(null);
+  const [payRange, setPayRange] = useState({ start: "", end: "" });
 
   async function loadEmployees() {
     try {
@@ -71,6 +73,53 @@ export default function App() {
       loadEmployees();
     } catch (e) {
       setError(e.message);
+    }
+  }
+
+  async function removeEmployee(emp) {
+    if (!window.confirm(`Permanently delete ${emp.name}? Their attendance history stays, but the account is removed. This cannot be undone.`)) return;
+    try {
+      await api.deleteEmployee(emp.id);
+      setEmpMsg(`✓ ${emp.name} deleted`);
+      loadEmployees();
+    } catch (e) {
+      setError(e.message);
+    }
+  }
+
+  async function setRate(emp) {
+    const current = emp.hourly_rate || 0;
+    const input = window.prompt(`Set hourly rate for ${emp.name} (₹ per hour):`, current);
+    if (input === null) return;
+    const rate = parseFloat(input);
+    if (isNaN(rate) || rate < 0) { setError("Enter a valid number"); return; }
+    try {
+      await api.setHourlyRate(emp.id, rate);
+      setEmpMsg(`✓ ${emp.name}'s rate set to ₹${rate}/hr`);
+      loadEmployees();
+    } catch (e) {
+      setError(e.message);
+    }
+  }
+
+  async function forceClockOut(empId, name) {
+    if (!window.confirm(`Force clock-out ${name}? Use this if they forgot to clock out.`)) return;
+    try {
+      await api.forceClockOut(empId);
+      setEmpMsg(`✓ ${name} clocked out`);
+      loadAll();
+    } catch (e) {
+      setError(e.message);
+    }
+  }
+
+  async function runPayroll() {
+    if (!payRange.start || !payRange.end) { setError("Pick a start and end date"); return; }
+    try {
+      const data = await api.payroll(payRange.start, payRange.end);
+      setPayrollData(data);
+    } catch (e) {
+      setError("Payroll failed: " + e.message);
     }
   }
 
@@ -226,6 +275,7 @@ export default function App() {
     { id: "overview", label: "Live Map", icon: MapPin },
     { id: "logs", label: "Attendance", icon: Clock },
     { id: "employees", label: "Employees", icon: Users },
+    { id: "payroll", label: "Payroll", icon: Download },
     { id: "alerts", label: "Alerts", icon: AlertTriangle },
     { id: "sites", label: "Job Sites", icon: Activity },
   ];
@@ -322,6 +372,10 @@ export default function App() {
                         style={{ ...btnSecondary, padding: "5px 10px", fontSize: 12 }}>
                         Time away
                       </button>
+                      <button onClick={() => forceClockOut(p.employee_id, p.employee_name)} title="Clock out (if they forgot)"
+                        style={{ ...btnSecondary, padding: "5px 10px", fontSize: 12, color: C.amber }}>
+                        Clock out
+                      </button>
                       {p.signal_lost
                         ? <Tag color={C.red}>⚠ Signal lost {p.minutes_since_update ? `(${p.minutes_since_update}m)` : ""}</Tag>
                         : p.flags?.length > 0
@@ -394,6 +448,52 @@ export default function App() {
               </div>
             ))}
           </Card>
+        )}
+
+        {/* PAYROLL */}
+        {tab === "payroll" && (
+          <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+            <Card>
+              <h3 style={h3}>Payroll</h3>
+              <p style={{ color: C.muted, fontSize: 13, marginTop: -6, marginBottom: 12 }}>
+                Pay = net hours worked (time on site) × each employee's hourly rate.
+                Set rates in the Employees tab.
+              </p>
+              <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+                <input type="date" value={payRange.start}
+                  onChange={(e) => setPayRange({ ...payRange, start: e.target.value })} style={inp} />
+                <input type="date" value={payRange.end}
+                  onChange={(e) => setPayRange({ ...payRange, end: e.target.value })} style={inp} />
+                <button onClick={runPayroll} style={btnPrimary}>Calculate</button>
+              </div>
+            </Card>
+
+            {payrollData && (
+              <Card>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+                  <h3 style={{ ...h3, margin: 0 }}>
+                    {payrollData.start} → {payrollData.end}
+                  </h3>
+                  <div style={{ color: C.green, fontSize: 18, fontWeight: 700 }}>
+                    Total: ₹{payrollData.total_pay.toLocaleString()}
+                  </div>
+                </div>
+                {payrollData.rows.length === 0 && <p style={{ color: C.muted }}>No attendance in this range.</p>}
+                {payrollData.rows.map((r) => (
+                  <div key={r.employee_id} style={rowStyle}>
+                    <div>
+                      <div style={{ color: C.text, fontWeight: 600 }}>{r.name}</div>
+                      <div style={{ color: C.muted, fontSize: 12 }}>
+                        {r.hours} hrs × ₹{r.hourly_rate}/hr
+                        {r.hourly_rate === 0 && <span style={{ color: C.amber }}> · set rate in Employees</span>}
+                      </div>
+                    </div>
+                    <div style={{ color: C.green, fontSize: 16, fontWeight: 700 }}>₹{r.pay.toLocaleString()}</div>
+                  </div>
+                ))}
+              </Card>
+            )}
+          </div>
         )}
 
         {/* ALERTS */}
@@ -509,9 +609,21 @@ export default function App() {
                       </button>
                     )}
                     {e.role !== "admin" && (
+                      <button onClick={() => setRate(e)} title="Set hourly pay rate"
+                        style={{ ...btnSecondary, padding: "5px 9px", fontSize: 12 }}>
+                        ₹{e.hourly_rate || 0}/hr
+                      </button>
+                    )}
+                    {e.role !== "admin" && (
                       <button onClick={() => toggleEmployee(e)}
                         style={{ ...btnSecondary, padding: "5px 9px", fontSize: 12, color: e.active ? C.red : C.green }}>
                         {e.active ? "Deactivate" : "Activate"}
+                      </button>
+                    )}
+                    {e.role !== "admin" && (
+                      <button onClick={() => removeEmployee(e)} title="Delete permanently"
+                        style={{ ...btnSecondary, padding: "5px 9px", fontSize: 12, color: C.red }}>
+                        <Trash2 size={13} />
                       </button>
                     )}
                   </div>
