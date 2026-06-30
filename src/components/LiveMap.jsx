@@ -3,11 +3,13 @@
 // geofence circles. Replaces the old abstract-grid canvas version.
 import { useEffect, useRef } from "react";
 import { C } from "./ui";
+import { api } from "../services/api";
 
 export default function LiveMap({ live, sites }) {
   const mapRef = useRef(null);
   const mapObj = useRef(null);
   const layerRef = useRef(null);
+  const trailLayer = useRef(null);
 
   useEffect(() => {
     if (!window.L || !mapRef.current || mapObj.current) return;
@@ -19,6 +21,7 @@ export default function LiveMap({ live, sites }) {
     }).addTo(map);
     mapObj.current = map;
     layerRef.current = L.layerGroup().addTo(map);
+    trailLayer.current = L.layerGroup().addTo(map);
     setTimeout(() => map.invalidateSize(), 200);
   }, []);
 
@@ -68,6 +71,39 @@ export default function LiveMap({ live, sites }) {
       map.fitBounds(bounds, { padding: [40, 40], maxZoom: 17 });
     }
   }, [live, sites]);
+
+  // Draw trails for employees who are currently OFF-site
+  useEffect(() => {
+    const L = window.L;
+    if (!L || !trailLayer.current) return;
+    const group = trailLayer.current;
+    group.clearLayers();
+
+    const awayPeople = (live || []).filter((p) => p.on_site === false);
+    let cancelled = false;
+
+    (async () => {
+      for (const p of awayPeople) {
+        try {
+          const res = await api.trail(p.employee_id);
+          if (cancelled || !res.points || res.points.length < 2) continue;
+          const latlngs = res.points.map((pt) => [pt.lat, pt.lng]);
+          // Dashed amber line showing where they went
+          L.polyline(latlngs, {
+            color: C.amber, weight: 3, opacity: 0.7, dashArray: "6 6",
+          }).addTo(group);
+          // Small dots at each trail point
+          res.points.forEach((pt) => {
+            L.circleMarker([pt.lat, pt.lng], {
+              radius: 3, color: C.amber, fillColor: C.amber, fillOpacity: 0.8, weight: 1,
+            }).addTo(group);
+          });
+        } catch { /* skip */ }
+      }
+    })();
+
+    return () => { cancelled = true; };
+  }, [live]);
 
   const activeCount = (live || []).filter((p) => p.location).length;
 

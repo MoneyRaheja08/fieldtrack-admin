@@ -47,11 +47,14 @@ export const api = {
   activateEmployee: (id) => request(`/admin/employees/${id}/activate`, { method: "PATCH" }),
   deleteEmployee: (id) => request(`/admin/employees/${id}`, { method: "DELETE" }),
   setHourlyRate: (id, rate) => request(`/admin/employees/${id}/rate`, { method: "PATCH", body: { hourly_rate: rate } }),
+  setShift: (id, shift_start, shift_end) => request(`/admin/employees/${id}/shift`, { method: "PATCH", body: { shift_start, shift_end } }),
   forceClockOut: (id) => request(`/admin/attendance/${id}/force-clockout`, { method: "POST" }),
+  trail: (id) => request(`/admin/trail/${id}`),
   payroll: (start, end) => request(`/admin/payroll?start=${start}&end=${end}`),
   resetDevice: (id) => request(`/auth/reset-device/${id}`, { method: "POST" }),
   createSite: (site) => request("/admin/sites", { method: "POST", body: site }),
   deleteSite: (id) => request(`/admin/sites/${id}`, { method: "DELETE" }),
+  setSiteWifi: (id, wifi_bssids) => request(`/admin/sites/${id}/wifi`, { method: "PATCH", body: { wifi_bssids } }),
   resetDevice: (id) => request(`/auth/reset-device/${id}`, { method: "POST" }),
   // CSV export uses a direct link with the token as a query-less fetch + blob
   exportCsv: async (start, end) => {

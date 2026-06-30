@@ -102,6 +102,23 @@ export default function App() {
     }
   }
 
+  async function setShift(emp) {
+    const start = window.prompt(`${emp.name} — start time (HH:MM, 24h). Late after this.`, emp.shift_start || "11:00");
+    if (start === null) return;
+    const end = window.prompt(`${emp.name} — end time (HH:MM, 24h). Left-early before this.`, emp.shift_end || "20:30");
+    if (end === null) return;
+    if (!/^\d{1,2}:\d{2}$/.test(start) || !/^\d{1,2}:\d{2}$/.test(end)) {
+      setError("Use HH:MM format, e.g. 11:00"); return;
+    }
+    try {
+      await api.setShift(emp.id, start, end);
+      setEmpMsg(`✓ ${emp.name}: ${start}–${end}`);
+      loadEmployees();
+    } catch (e) {
+      setError(e.message);
+    }
+  }
+
   async function forceClockOut(empId, name) {
     if (!window.confirm(`Force clock-out ${name}? Use this if they forgot to clock out.`)) return;
     try {
@@ -258,6 +275,25 @@ export default function App() {
       setSites(sites.filter((s) => s.id !== id));
     } catch (e) {
       setError("Could not delete site: " + e.message);
+    }
+  }
+
+  async function editWifi(site) {
+    const current = (site.wifi_bssids || []).join(", ");
+    const input = window.prompt(
+      `Allowed Wi-Fi for "${site.name}".\n\n` +
+      `Enter the router BSSID(s), comma-separated. Leave blank for GPS-only.\n` +
+      `Tip: find the BSSID on an Android phone connected to the showroom Wi-Fi ` +
+      `(Settings → Wi-Fi → tap the network → BSSID), format aa:bb:cc:dd:ee:ff.`,
+      current
+    );
+    if (input === null) return;
+    const list = input.split(",").map((b) => b.trim()).filter(Boolean);
+    try {
+      await api.setSiteWifi(site.id, list);
+      setSites(sites.map((s) => s.id === site.id ? { ...s, wifi_bssids: list } : s));
+    } catch (e) {
+      setError("Could not save Wi-Fi: " + e.message);
     }
   }
 
@@ -442,7 +478,9 @@ export default function App() {
                 <div style={{ color: C.text }}>{fmt(r.clock_in)} → {fmt(r.clock_out)}</div>
                 <div style={{ color: C.muted }}>{fmtDur(r.duration_minutes)}</div>
                 <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-                  <Tag color={r.is_late ? C.amber : C.green}>{r.is_late ? "Late" : "On Time"}</Tag>
+                  {r.is_late && <Tag color={C.amber}>Late</Tag>}
+                  {r.left_early && <Tag color={C.red}>Left early</Tag>}
+                  {!r.is_late && !r.left_early && <Tag color={C.green}>On Time</Tag>}
                   {r.flags?.length > 0 && <Tag color={C.red}>⚠</Tag>}
                 </div>
               </div>
@@ -615,6 +653,12 @@ export default function App() {
                       </button>
                     )}
                     {e.role !== "admin" && (
+                      <button onClick={() => setShift(e)} title="Set shift start/end times"
+                        style={{ ...btnSecondary, padding: "5px 9px", fontSize: 12 }}>
+                        🕐 {e.shift_start || "11:00"}–{e.shift_end || "20:30"}
+                      </button>
+                    )}
+                    {e.role !== "admin" && (
                       <button onClick={() => toggleEmployee(e)}
                         style={{ ...btnSecondary, padding: "5px 9px", fontSize: 12, color: e.active ? C.red : C.green }}>
                         {e.active ? "Deactivate" : "Activate"}
@@ -689,8 +733,15 @@ export default function App() {
                   <div>
                     <div style={{ color: C.text, fontSize: 14, fontWeight: 600 }}>{s.name}</div>
                     <div style={{ color: C.muted, fontSize: 12 }}>{s.latitude.toFixed(4)}, {s.longitude.toFixed(4)} · {s.radius_m}m radius</div>
+                    <div style={{ color: s.wifi_bssids?.length ? C.green : C.muted, fontSize: 12, marginTop: 2 }}>
+                      {s.wifi_bssids?.length ? `📶 ${s.wifi_bssids.length} Wi-Fi network(s) set` : "📶 No Wi-Fi check (GPS only)"}
+                    </div>
                   </div>
-                  <button onClick={() => removeSite(s.id)} style={{ background: "transparent", border: "none", cursor: "pointer", color: C.red }}><Trash2 size={16} /></button>
+                  <div style={{ display: "flex", gap: 6 }}>
+                    <button onClick={() => editWifi(s)} title="Set allowed Wi-Fi networks"
+                      style={{ ...btnSecondary, padding: "5px 9px", fontSize: 12 }}>Wi-Fi</button>
+                    <button onClick={() => removeSite(s.id)} style={{ background: "transparent", border: "none", cursor: "pointer", color: C.red }}><Trash2 size={16} /></button>
+                  </div>
                 </div>
               ))}
             </Card>
