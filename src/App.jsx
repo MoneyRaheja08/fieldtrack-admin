@@ -34,6 +34,7 @@ export default function App() {
   const [tileView, setTileView] = useState(null); // {key, label, color, list}
   const [payrollData, setPayrollData] = useState(null);
   const [payRange, setPayRange] = useState({ start: "", end: "" });
+  const [empFilter, setEmpFilter] = useState("all");
 
   async function loadEmployees() {
     try {
@@ -429,17 +430,17 @@ export default function App() {
                             {presenceFor.data.away_segments?.map((s, i) => (
                               <div key={i} style={{ display: "flex", justifyContent: "space-between", fontSize: 13, color: C.text, paddingVertical: 3 }}>
                                 <span>{fmt(s.left_at)} → {fmt(s.returned_at)}</span>
-                                <span style={{ color: C.muted }}>{s.minutes} min away</span>
+                                <span style={{ color: C.muted }}>{fmtDur(s.minutes)} away</span>
                               </div>
                             ))}
                             {presenceFor.data.still_away && (
                               <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13, color: C.amber, paddingVertical: 3 }}>
                                 <span>Left {fmt(presenceFor.data.still_away.left_at)} · not back</span>
-                                <span>{presenceFor.data.still_away.minutes} min</span>
+                                <span>{fmtDur(presenceFor.data.still_away.minutes)}</span>
                               </div>
                             )}
                             <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13, fontWeight: 700, color: C.text, paddingTop: 6, marginTop: 4, borderTop: `1px solid ${C.border}` }}>
-                              <span>Total away</span><span>{presenceFor.data.total_away_minutes} min</span>
+                              <span>Total away</span><span>{fmtDur(presenceFor.data.total_away_minutes)}</span>
                             </div>
                             {presenceFor.data.net_worked_minutes != null && (
                               <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13, color: C.muted, paddingTop: 3 }}>
@@ -456,37 +457,77 @@ export default function App() {
         )}
 
         {/* LOGS */}
-        {tab === "logs" && (
-          <Card>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16, flexWrap: "wrap", gap: 10 }}>
-              <h3 style={{ ...h3, margin: 0 }}>Attendance Records</h3>
-              <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                <input type="date" value={range.start} onChange={(e) => setRange({ ...range, start: e.target.value })} style={dateInp} />
-                <span style={{ color: C.muted }}>→</span>
-                <input type="date" value={range.end} onChange={(e) => setRange({ ...range, end: e.target.value })} style={dateInp} />
-                <button onClick={loadAll} style={{ ...btnSecondary, padding: "7px 12px" }}>Apply</button>
-                <button onClick={exportCsv} style={btnPrimary}>
-                  <Download size={14} /> Excel Report
-                </button>
+        {tab === "logs" && (() => {
+          const shown = empFilter === "all" ? report : report.filter((r) => r.employee_name === empFilter);
+          const names = [...new Set(report.map((r) => r.employee_name))].sort();
+          // Per-employee summary for the visible range
+          const sums = {};
+          shown.forEach((r) => {
+            const s = sums[r.employee_name] || (sums[r.employee_name] = { days: 0, mins: 0, late: 0, early: 0 });
+            s.days += 1;
+            s.mins += r.duration_minutes || 0;
+            if (r.is_late) s.late += 1;
+            if (r.left_early) s.early += 1;
+          });
+          return (
+          <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+            <Card>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16, flexWrap: "wrap", gap: 10 }}>
+                <h3 style={{ ...h3, margin: 0 }}>Attendance Records</h3>
+                <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+                  <select value={empFilter} onChange={(e) => setEmpFilter(e.target.value)}
+                    style={{ ...dateInp, minWidth: 130 }}>
+                    <option value="all">All employees</option>
+                    {names.map((n) => <option key={n} value={n}>{n}</option>)}
+                  </select>
+                  <input type="date" value={range.start} onChange={(e) => setRange({ ...range, start: e.target.value })} style={dateInp} />
+                  <span style={{ color: C.muted }}>→</span>
+                  <input type="date" value={range.end} onChange={(e) => setRange({ ...range, end: e.target.value })} style={dateInp} />
+                  <button onClick={loadAll} style={{ ...btnSecondary, padding: "7px 12px" }}>Apply</button>
+                  <button onClick={exportCsv} style={btnPrimary}>
+                    <Download size={14} /> Excel Report
+                  </button>
+                </div>
               </div>
-            </div>
-            {report.length === 0 && <p style={{ color: C.muted, fontSize: 13 }}>No records in this range.</p>}
-            {report.map((r) => (
-              <div key={r.id} style={{ display: "grid", gridTemplateColumns: "2fr 1fr 1.5fr 1fr 1.5fr", gap: 8, padding: "11px 0", borderBottom: `1px solid ${C.border}`, fontSize: 13, alignItems: "center" }}>
-                <div style={{ color: C.text, fontWeight: 600 }}>{r.employee_name}</div>
-                <div style={{ color: C.muted }}>{new Date(r.date).toLocaleDateString([], { month: "short", day: "numeric" })}</div>
-                <div style={{ color: C.text }}>{fmt(r.clock_in)} → {fmt(r.clock_out)}</div>
-                <div style={{ color: C.muted }}>{fmtDur(r.duration_minutes)}</div>
-                <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+
+              {/* Per-employee summary for the selected range */}
+              {Object.keys(sums).length > 0 && (
+                <div style={{ marginBottom: 16 }}>
+                  <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr 1fr 1fr 1fr", gap: 8, padding: "8px 0", borderBottom: `2px solid ${C.border}`, fontSize: 12, color: C.muted, fontWeight: 700 }}>
+                    <div>EMPLOYEE</div><div>DAYS</div><div>HOURS</div><div>LATE</div><div>LEFT EARLY</div>
+                  </div>
+                  {Object.entries(sums).sort().map(([name, s]) => (
+                    <div key={name} style={{ display: "grid", gridTemplateColumns: "2fr 1fr 1fr 1fr 1fr", gap: 8, padding: "9px 0", borderBottom: `1px solid ${C.border}`, fontSize: 13 }}>
+                      <div style={{ color: C.text, fontWeight: 600 }}>{name}</div>
+                      <div style={{ color: C.text }}>{s.days}</div>
+                      <div style={{ color: C.text }}>{(s.mins / 60).toFixed(1)}</div>
+                      <div style={{ color: s.late ? C.amber : C.muted }}>{s.late}</div>
+                      <div style={{ color: s.early ? C.red : C.muted }}>{s.early}</div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              <h3 style={{ ...h3, fontSize: 13, color: C.muted }}>DETAIL</h3>
+              {shown.length === 0 && <p style={{ color: C.muted, fontSize: 13 }}>No records in this range.</p>}
+              {shown.map((r) => (
+                <div key={r.id} style={{ display: "grid", gridTemplateColumns: "2fr 1fr 1.5fr 1fr 1.5fr", gap: 8, padding: "11px 0", borderBottom: `1px solid ${C.border}`, fontSize: 13, alignItems: "center" }}>
+                  <div style={{ color: C.text, fontWeight: 600 }}>{r.employee_name}</div>
+                  <div style={{ color: C.muted }}>{new Date(r.date).toLocaleDateString([], { month: "short", day: "numeric" })}</div>
+                  <div style={{ color: C.text }}>{fmt(r.clock_in)} → {fmt(r.clock_out)}{r.auto_closed && <span style={{ color: C.amber, fontSize: 11 }}> (auto)</span>}</div>
+                  <div style={{ color: C.muted }}>{fmtDur(r.duration_minutes)}</div>
+                  <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
                   {r.is_late && <Tag color={C.amber}>Late</Tag>}
                   {r.left_early && <Tag color={C.red}>Left early</Tag>}
                   {!r.is_late && !r.left_early && <Tag color={C.green}>On Time</Tag>}
                   {r.flags?.length > 0 && <Tag color={C.red}>⚠</Tag>}
                 </div>
               </div>
-            ))}
-          </Card>
-        )}
+              ))}
+            </Card>
+          </div>
+          );
+        })()}
 
         {/* PAYROLL */}
         {tab === "payroll" && (

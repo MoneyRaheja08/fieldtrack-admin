@@ -72,7 +72,9 @@ export default function LiveMap({ live, sites }) {
     }
   }, [live, sites]);
 
-  // Draw trails for employees who are currently OFF-site
+  // Draw trails for employees who are currently OFF-site.
+  // Each employee gets a distinct color so you can tell who went where.
+  const TRAIL_COLORS = ["#F59E0B", "#8B5CF6", "#EC4899", "#06B6D4", "#84CC16", "#F97316", "#14B8A6"];
   useEffect(() => {
     const L = window.L;
     if (!L || !trailLayer.current) return;
@@ -83,21 +85,35 @@ export default function LiveMap({ live, sites }) {
     let cancelled = false;
 
     (async () => {
-      for (const p of awayPeople) {
+      for (let i = 0; i < awayPeople.length; i++) {
+        const p = awayPeople[i];
+        const color = TRAIL_COLORS[i % TRAIL_COLORS.length];
         try {
           const res = await api.trail(p.employee_id);
           if (cancelled || !res.points || res.points.length < 2) continue;
           const latlngs = res.points.map((pt) => [pt.lat, pt.lng]);
-          // Dashed amber line showing where they went
+
+          // Colored dashed line, named after the employee
           L.polyline(latlngs, {
-            color: C.amber, weight: 3, opacity: 0.7, dashArray: "6 6",
-          }).addTo(group);
-          // Small dots at each trail point
+            color, weight: 3, opacity: 0.85, dashArray: "6 6",
+          }).addTo(group).bindPopup("<b>" + p.employee_name + "</b><br/>Path while away");
+
+          // Dots along the trail in the same color
           res.points.forEach((pt) => {
             L.circleMarker([pt.lat, pt.lng], {
-              radius: 3, color: C.amber, fillColor: C.amber, fillOpacity: 0.8, weight: 1,
+              radius: 3, color, fillColor: color, fillOpacity: 0.9, weight: 1,
             }).addTo(group);
           });
+
+          // Name tag at the trail's latest point so it's readable at a glance
+          const last = latlngs[latlngs.length - 1];
+          const nameTag = L.divIcon({
+            html: '<div style="background:' + color + ';color:#fff;font-size:10px;font-weight:700;' +
+                  'padding:2px 6px;border-radius:8px;white-space:nowrap;box-shadow:0 1px 3px rgba(0,0,0,0.5)">' +
+                  p.employee_name + '</div>',
+            className: "", iconSize: null, iconAnchor: [0, -8],
+          });
+          L.marker(last, { icon: nameTag, interactive: false }).addTo(group);
         } catch { /* skip */ }
       }
     })();
