@@ -29,7 +29,8 @@ export default function App() {
   const [error, setError] = useState("");
   const [presenceFor, setPresenceFor] = useState(null); // {id, data}
   const [employees, setEmployees] = useState([]);
-  const [newEmp, setNewEmp] = useState({ name: "", employee_code: "", pin: "", job_title: "" });
+  const [newEmp, setNewEmp] = useState({ name: "", employee_code: "", pin: "", job_title: "", phone: "" });
+  const [waLink, setWaLink] = useState(null);
   const [empMsg, setEmpMsg] = useState("");
   const [tileView, setTileView] = useState(null); // {key, label, color, list}
   const [payrollData, setPayrollData] = useState(null);
@@ -42,6 +43,25 @@ export default function App() {
     } catch (e) {
       setError("Could not load employees: " + e.message);
     }
+  }
+
+  // Where employees get the app / clock-in. Edit these two to your links.
+  const APP_DOWNLOAD_LINK = "ASK_ADMIN_FOR_APK";   // paste your APK link here
+  const WEB_CLOCKIN_LINK = "https://fieldtrack-admin-theta.vercel.app"; // or your web clock-in URL
+
+  function whatsappCredentialLink(emp) {
+    const phone = (emp.phone || "").replace(/\D/g, "");
+    if (!phone) return null;
+    const withCountry = phone.length === 10 ? "91" + phone : phone;
+    const msg =
+      `Welcome to FieldTrack, ${emp.name}! 👋\n\n` +
+      `Your attendance login:\n` +
+      `🆔 Code: ${emp.employee_code}\n` +
+      `🔑 PIN: ${emp.pin}\n\n` +
+      (APP_DOWNLOAD_LINK !== "ASK_ADMIN_FOR_APK" ? `📲 App: ${APP_DOWNLOAD_LINK}\n` : "") +
+      `🌐 Web clock-in: ${WEB_CLOCKIN_LINK}\n\n` +
+      `Install the app, allow Location ("Allow all the time") and Camera, then log in with the code and PIN above.`;
+    return `https://wa.me/${withCountry}?text=${encodeURIComponent(msg)}`;
   }
 
   async function addEmployee() {
@@ -58,9 +78,21 @@ export default function App() {
         role: "employee",
       };
       if (newEmp.job_title.trim()) body.job_title = newEmp.job_title.trim();
+      if (newEmp.phone.trim()) body.phone = newEmp.phone.trim();
       await api.createEmployee(body);
-      setNewEmp({ name: "", employee_code: "", pin: "", job_title: "" });
-      setEmpMsg("✓ Employee added");
+
+      // Offer to send credentials on WhatsApp (opens with message pre-filled)
+      const wa = whatsappCredentialLink({
+        name: body.name, employee_code: body.employee_code,
+        pin: body.pin, phone: body.phone,
+      });
+      if (wa) {
+        setWaLink(wa);
+        setEmpMsg(`✓ ${body.name} added — send them their login on WhatsApp:`);
+      } else {
+        setEmpMsg("✓ Employee added");
+      }
+      setNewEmp({ name: "", employee_code: "", pin: "", job_title: "", phone: "" });
       loadEmployees();
     } catch (e) {
       setEmpMsg("✗ " + e.message);
@@ -647,12 +679,21 @@ export default function App() {
                 <input placeholder="PIN (4-6 digits)" value={newEmp.pin}
                   onChange={(e) => setNewEmp({ ...newEmp, pin: e.target.value.replace(/\D/g, "") })}
                   maxLength={6} style={inp} />
+                <input placeholder="WhatsApp no. (optional)" value={newEmp.phone}
+                  onChange={(e) => setNewEmp({ ...newEmp, phone: e.target.value.replace(/[^\d+]/g, "") })}
+                  style={inp} />
                 <button onClick={addEmployee} style={{ ...btnPrimary, padding: "9px 12px" }}>
                   <Plus size={15} /> Add
                 </button>
               </div>
               {empMsg && (
                 <p style={{ fontSize: 13, marginTop: 10, color: empMsg.startsWith("✓") ? C.green : C.red }}>{empMsg}</p>
+              )}
+              {waLink && (
+                <a href={waLink} target="_blank" rel="noreferrer" onClick={() => setTimeout(() => setWaLink(null), 500)}
+                  style={{ display: "inline-flex", alignItems: "center", gap: 8, marginTop: 8, background: "#25D366", color: "#fff", padding: "9px 16px", borderRadius: 9, textDecoration: "none", fontSize: 14, fontWeight: 700 }}>
+                  📲 Send login on WhatsApp
+                </a>
               )}
               <p style={{ color: C.muted, fontSize: 12, marginTop: 8 }}>
                 The employee logs into the phone app with their code + PIN. Their phone binds on first login.
