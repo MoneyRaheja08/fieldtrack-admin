@@ -30,6 +30,11 @@ export const friendlyFlag = (f = "") => {
   if (f === "MISSING_SELFIE") return "No selfie";
   if (f === "NO_DEVICE_BOUND") return "No device bound";
   if (f === "NO_SITES_CONFIGURED") return "No sites set up";
+  if (f === "WIFI_MISMATCH") return "Wrong Wi-Fi";
+  if (f === "WIFI_NOT_CONNECTED") return "Not on shop Wi-Fi";
+  if (f === "WIFI_LOST") return "Wi-Fi lost mid-shift";
+  if (f === "GPS_ACCURACY_LOW") return "Weak GPS signal";
+  if (f === "LOCATION_DISABLED") return "Location turned off";
   return f;
 };
 

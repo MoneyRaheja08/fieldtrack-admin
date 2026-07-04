@@ -445,7 +445,9 @@ export default function App() {
                         style={{ ...btnSecondary, padding: "5px 10px", fontSize: 12, color: C.amber }}>
                         Clock out
                       </button>
-                      {p.signal_lost
+                      {p.location_disabled
+                        ? <Tag color={C.red}>🚫 Location OFF{p.location_off_count ? ` (${p.location_off_count}×)` : ""}</Tag>
+                        : p.signal_lost
                         ? <Tag color={C.red}>⚠ Signal lost {p.minutes_since_update ? `(${p.minutes_since_update}m)` : ""}</Tag>
                         : p.flags?.length > 0
                         ? <Tag color={C.amber}>⚠ {friendlyFlag(p.flags[0])}</Tag>
