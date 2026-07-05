@@ -37,6 +37,7 @@ export default function App() {
   const [payRange, setPayRange] = useState({ start: "", end: "" });
   const [empFilter, setEmpFilter] = useState("all");
   const [editEmp, setEditEmp] = useState(null);
+  const [selfieView, setSelfieView] = useState(null);   // {loading, image}
 
   async function loadEmployees() {
     try {
@@ -130,6 +131,17 @@ export default function App() {
       phone: emp.phone || "",
       pin: "",   // blank = leave unchanged
     });
+  }
+
+  async function viewSelfie(selfieId) {
+    setSelfieView({ loading: true, image: null });
+    try {
+      const r = await api.selfie(selfieId);
+      setSelfieView({ loading: false, image: r.image_base64 });
+    } catch (e) {
+      setSelfieView(null);
+      setError("Could not load selfie: " + e.message);
+    }
   }
 
   async function saveEdit() {
@@ -539,7 +551,8 @@ export default function App() {
           // Per-employee summary for the visible range
           const sums = {};
           shown.forEach((r) => {
-            const s = sums[r.employee_name] || (sums[r.employee_name] = { days: 0, mins: 0, late: 0, early: 0 });
+            const s = sums[r.employee_name] || (sums[r.employee_name] = { days: 0, mins: 0, late: 0, early: 0, absent: 0 });
+            if (r.status === "absent") { s.absent += 1; return; }
             s.days += 1;
             s.mins += r.duration_minutes || 0;
             if (r.is_late) s.late += 1;
@@ -570,7 +583,7 @@ export default function App() {
               {Object.keys(sums).length > 0 && (
                 <div style={{ marginBottom: 16 }}>
                   <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr 1fr 1fr 1fr", gap: 8, padding: "8px 0", borderBottom: `2px solid ${C.border}`, fontSize: 12, color: C.muted, fontWeight: 700 }}>
-                    <div>EMPLOYEE</div><div>DAYS</div><div>HOURS</div><div>LATE</div><div>LEFT EARLY</div>
+                    <div>EMPLOYEE</div><div>DAYS</div><div>HOURS</div><div>LATE</div><div>LEFT EARLY / ABSENT</div>
                   </div>
                   {Object.entries(sums).sort().map(([name, s]) => (
                     <div key={name} style={{ display: "grid", gridTemplateColumns: "2fr 1fr 1fr 1fr 1fr", gap: 8, padding: "9px 0", borderBottom: `1px solid ${C.border}`, fontSize: 13 }}>
@@ -578,7 +591,7 @@ export default function App() {
                       <div style={{ color: C.text }}>{s.days}</div>
                       <div style={{ color: C.text }}>{(s.mins / 60).toFixed(1)}</div>
                       <div style={{ color: s.late ? C.amber : C.muted }}>{s.late}</div>
-                      <div style={{ color: s.early ? C.red : C.muted }}>{s.early}</div>
+                      <div style={{ color: (s.early || s.absent) ? C.red : C.muted }}>{s.early}{s.absent ? ` / ${s.absent} absent` : ""}</div>
                     </div>
                   ))}
                 </div>
@@ -590,15 +603,31 @@ export default function App() {
                 <div key={r.id} style={{ display: "grid", gridTemplateColumns: "2fr 1fr 1.5fr 1fr 1.5fr", gap: 8, padding: "11px 0", borderBottom: `1px solid ${C.border}`, fontSize: 13, alignItems: "center" }}>
                   <div style={{ color: C.text, fontWeight: 600 }}>{r.employee_name}</div>
                   <div style={{ color: C.muted }}>{new Date(r.date).toLocaleDateString([], { month: "short", day: "numeric" })}</div>
-                  <div style={{ color: C.text }}>{fmt(r.clock_in)} → {fmt(r.clock_out)}{r.auto_closed && <span style={{ color: C.amber, fontSize: 11 }}> (auto)</span>}</div>
+                  {r.status === "absent" ? (
+                    <>
+                      <div style={{ color: C.red, fontWeight: 600 }}>Absent</div>
+                      <div style={{ color: C.muted }}>—</div>
+                      <div><Tag color={C.red}>Absent</Tag></div>
+                    </>
+                  ) : (
+                    <>
+                  <div style={{ color: C.text }}>
+                    {fmt(r.clock_in)} → {fmt(r.clock_out)}{r.auto_closed && <span style={{ color: C.amber, fontSize: 11 }}> (auto)</span>}
+                    {r.clock_in_location?.selfie && !String(r.clock_in_location.selfie).startsWith("selfie_stored") && (
+                      <button onClick={() => viewSelfie(r.clock_in_location.selfie)} title="View clock-in selfie"
+                        style={{ background: "transparent", border: "none", cursor: "pointer", fontSize: 13, marginLeft: 4 }}>📷</button>
+                    )}
+                  </div>
                   <div style={{ color: C.muted }}>{fmtDur(r.duration_minutes)}</div>
                   <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
                   {r.is_late && <Tag color={C.amber}>Late</Tag>}
                   {r.left_early && <Tag color={C.red}>Left early</Tag>}
                   {!r.is_late && !r.left_early && <Tag color={C.green}>On Time</Tag>}
                   {r.flags?.length > 0 && <Tag color={C.red}>⚠</Tag>}
+                  </div>
+                    </>
+                  )}
                 </div>
-              </div>
               ))}
             </Card>
           </div>
@@ -945,6 +974,21 @@ export default function App() {
               <button onClick={saveEdit} style={{ ...btnPrimary, flex: 1 }}>Save Changes</button>
               <button onClick={() => setEditEmp(null)} style={{ ...btnSecondary, flex: 1 }}>Cancel</button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {selfieView && (
+        <div onClick={() => setSelfieView(null)}
+          style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.7)", zIndex: 100001, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
+          <div onClick={(ev) => ev.stopPropagation()}
+            style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 14, padding: 16, maxWidth: 360 }}>
+            <h3 style={{ ...h3, marginTop: 0 }}>Clock-in Selfie</h3>
+            {selfieView.loading
+              ? <p style={{ color: C.muted }}>Loading…</p>
+              : <img src={`data:image/jpeg;base64,${selfieView.image}`} alt="Clock-in selfie"
+                  style={{ width: "100%", borderRadius: 10 }} />}
+            <button onClick={() => setSelfieView(null)} style={{ ...btnSecondary, width: "100%", marginTop: 12 }}>Close</button>
           </div>
         </div>
       )}
