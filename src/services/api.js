@@ -57,8 +57,10 @@ export const api = {
   setSiteWifi: (id, wifi_bssids) => request(`/admin/sites/${id}/wifi`, { method: "PATCH", body: { wifi_bssids } }),
   resetDevice: (id) => request(`/auth/reset-device/${id}`, { method: "POST" }),
   // CSV export uses a direct link with the token as a query-less fetch + blob
-  exportCsv: async (start, end) => {
-    const res = await fetch(`${BASE_URL}/admin/report/export?start=${start}&end=${end}`, {
+  exportCsv: async (start, end, employeeId) => {
+    let url = `${BASE_URL}/admin/report/export?start=${start}&end=${end}`;
+    if (employeeId && employeeId !== "all") url += `&employee_id=${employeeId}`;
+    const res = await fetch(url, {
       headers: { Authorization: `Bearer ${getToken()}` },
     });
     if (!res.ok) throw new Error("Export failed");

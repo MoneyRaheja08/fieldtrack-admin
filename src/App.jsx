@@ -245,11 +245,19 @@ export default function App() {
 
   async function exportCsv() {
     try {
-      const blob = await api.exportCsv(range.start, range.end);
+      // If a specific employee is selected in the dropdown, export only them.
+      let empId = null;
+      let namePart = "all";
+      if (empFilter !== "all") {
+        const row = report.find((r) => r.employee_name === empFilter);
+        empId = row ? row.employee_id : null;
+        namePart = empFilter.replace(/\s+/g, "_");
+      }
+      const blob = await api.exportCsv(range.start, range.end, empId);
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = `fieldtrack_report_${range.start}_to_${range.end}.xlsx`;
+      a.download = `fieldtrack_${namePart}_${range.start}_to_${range.end}.xlsx`;
       a.click();
       URL.revokeObjectURL(url);
     } catch (e) {
@@ -434,6 +442,11 @@ export default function App() {
                       <div>
                         <div style={{ color: C.text, fontSize: 14, fontWeight: 600 }}>{p.employee_name}</div>
                         <div style={{ color: C.muted, fontSize: 12 }}>In at {fmt(p.clock_in)}</div>
+                        {p.present_minutes != null && (
+                          <div style={{ color: C.green, fontSize: 12, fontWeight: 700, marginTop: 2 }}>
+                            Present: {fmtDur(p.present_minutes)}
+                          </div>
+                        )}
                       </div>
                     </div>
                     <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
@@ -519,7 +532,7 @@ export default function App() {
                   <input type="date" value={range.end} onChange={(e) => setRange({ ...range, end: e.target.value })} style={dateInp} />
                   <button onClick={loadAll} style={{ ...btnSecondary, padding: "7px 12px" }}>Apply</button>
                   <button onClick={exportCsv} style={btnPrimary}>
-                    <Download size={14} /> Excel Report
+                    <Download size={14} /> {empFilter === "all" ? "Excel Report (all)" : `Excel: ${empFilter}`}
                   </button>
                 </div>
               </div>
