@@ -53,6 +53,7 @@ export const api = {
   payroll: (start, end) => request(`/admin/payroll?start=${start}&end=${end}`),
   resetDevice: (id) => request(`/auth/reset-device/${id}`, { method: "POST" }),
   createSite: (site) => request("/admin/sites", { method: "POST", body: site }),
+  editEmployee: (id, fields) => request(`/admin/employees/${id}`, { method: "PATCH", body: fields }),
   deleteSite: (id) => request(`/admin/sites/${id}`, { method: "DELETE" }),
   setSiteWifi: (id, wifi_bssids) => request(`/admin/sites/${id}/wifi`, { method: "PATCH", body: { wifi_bssids } }),
   resetDevice: (id) => request(`/auth/reset-device/${id}`, { method: "POST" }),

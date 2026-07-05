@@ -36,6 +36,7 @@ export default function App() {
   const [payrollData, setPayrollData] = useState(null);
   const [payRange, setPayRange] = useState({ start: "", end: "" });
   const [empFilter, setEmpFilter] = useState("all");
+  const [editEmp, setEditEmp] = useState(null);
 
   async function loadEmployees() {
     try {
@@ -117,6 +118,34 @@ export default function App() {
       loadEmployees();
     } catch (e) {
       setError(e.message);
+    }
+  }
+
+  function openEdit(emp) {
+    setEditEmp({
+      id: emp.id,
+      name: emp.name || "",
+      employee_code: emp.employee_code || "",
+      job_title: emp.job_title || "",
+      phone: emp.phone || "",
+      pin: "",   // blank = leave unchanged
+    });
+  }
+
+  async function saveEdit() {
+    const fields = {};
+    if (editEmp.name.trim()) fields.name = editEmp.name.trim();
+    fields.job_title = editEmp.job_title.trim();
+    fields.phone = editEmp.phone.trim();
+    if (editEmp.employee_code.trim()) fields.employee_code = editEmp.employee_code.trim();
+    if (editEmp.pin.trim()) fields.pin = editEmp.pin.trim();   // only if entered
+    try {
+      await api.editEmployee(editEmp.id, fields);
+      setEmpMsg(`✓ ${fields.name || "Employee"} updated`);
+      setEditEmp(null);
+      loadEmployees();
+    } catch (e) {
+      setError("Could not save: " + e.message);
     }
   }
 
@@ -762,6 +791,12 @@ export default function App() {
                       </button>
                     )}
                     {e.role !== "admin" && (
+                      <button onClick={() => openEdit(e)} title="Edit details"
+                        style={{ ...btnSecondary, padding: "5px 9px", fontSize: 12 }}>
+                        ✏️ Edit
+                      </button>
+                    )}
+                    {e.role !== "admin" && (
                       <button onClick={() => removeEmployee(e)} title="Delete permanently"
                         style={{ ...btnSecondary, padding: "5px 9px", fontSize: 12, color: C.red }}>
                         <Trash2 size={13} />
@@ -874,6 +909,42 @@ export default function App() {
                 </span>
               </div>
             ))}
+          </div>
+        </div>
+      )}
+
+      {editEmp && (
+        <div onClick={() => setEditEmp(null)}
+          style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)", zIndex: 100000, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
+          <div onClick={(ev) => ev.stopPropagation()}
+            style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 14, padding: 24, width: "100%", maxWidth: 420 }}>
+            <h3 style={{ ...h3, marginTop: 0 }}>Edit Employee</h3>
+            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+              <div>
+                <label style={{ color: C.muted, fontSize: 12 }}>Full name</label>
+                <input value={editEmp.name} onChange={(e) => setEditEmp({ ...editEmp, name: e.target.value })} style={{ ...inp, width: "100%" }} />
+              </div>
+              <div>
+                <label style={{ color: C.muted, fontSize: 12 }}>Login ID (code)</label>
+                <input value={editEmp.employee_code} onChange={(e) => setEditEmp({ ...editEmp, employee_code: e.target.value.toUpperCase() })} style={{ ...inp, width: "100%" }} />
+              </div>
+              <div>
+                <label style={{ color: C.muted, fontSize: 12 }}>New PIN (leave blank to keep current)</label>
+                <input value={editEmp.pin} onChange={(e) => setEditEmp({ ...editEmp, pin: e.target.value.replace(/\D/g, "") })} maxLength={6} placeholder="••••" style={{ ...inp, width: "100%" }} />
+              </div>
+              <div>
+                <label style={{ color: C.muted, fontSize: 12 }}>Job title</label>
+                <input value={editEmp.job_title} onChange={(e) => setEditEmp({ ...editEmp, job_title: e.target.value })} style={{ ...inp, width: "100%" }} />
+              </div>
+              <div>
+                <label style={{ color: C.muted, fontSize: 12 }}>WhatsApp number</label>
+                <input value={editEmp.phone} onChange={(e) => setEditEmp({ ...editEmp, phone: e.target.value.replace(/[^\d+]/g, "") })} style={{ ...inp, width: "100%" }} />
+              </div>
+            </div>
+            <div style={{ display: "flex", gap: 10, marginTop: 18 }}>
+              <button onClick={saveEdit} style={{ ...btnPrimary, flex: 1 }}>Save Changes</button>
+              <button onClick={() => setEditEmp(null)} style={{ ...btnSecondary, flex: 1 }}>Cancel</button>
+            </div>
           </div>
         </div>
       )}
