@@ -101,6 +101,31 @@ export default function App() {
     }
   }
 
+  async function addAdmin() {
+    const name = window.prompt("New admin's full name:");
+    if (!name || !name.trim()) return;
+    const code = window.prompt("Login code (e.g. RAHUL):");
+    if (!code || !code.trim()) return;
+    const pin = window.prompt("PIN (4-6 digits):");
+    if (!pin || !/^\d{4,6}$/.test(pin.trim())) {
+      setError("PIN must be 4-6 digits");
+      return;
+    }
+    try {
+      await api.createEmployee({
+        name: name.trim(),
+        employee_code: code.trim().toUpperCase(),
+        pin: pin.trim(),
+        role: "admin",
+        job_title: "Admin",
+      });
+      setEmpMsg(`✓ Admin ${name.trim()} created — they can log in with code ${code.trim().toUpperCase()}`);
+      loadEmployees();
+    } catch (e) {
+      setError("Could not create admin: " + e.message);
+    }
+  }
+
   async function toggleEmployee(emp) {
     try {
       if (emp.active) await api.deactivateEmployee(emp.id);
@@ -810,7 +835,13 @@ export default function App() {
             </Card>
 
             <Card>
-              <h3 style={h3}>All Employees ({employees.length})</h3>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+                <h3 style={{ ...h3, margin: 0 }}>All Employees ({employees.length})</h3>
+                <button onClick={addAdmin} title="Create another admin login"
+                  style={{ ...btnSecondary, padding: "6px 12px", fontSize: 13 }}>
+                  + Add Admin
+                </button>
+              </div>
               {employees.length === 0 && <p style={{ color: C.muted, fontSize: 13 }}>No employees yet. Add your first one above.</p>}
               {employees.map((e) => (
                 <div key={e.id} style={rowStyle}>
