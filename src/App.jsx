@@ -472,6 +472,42 @@ export default function App() {
               <LiveMap live={live} sites={sites} />
               <p style={{ color: C.muted, fontSize: 12, marginTop: 8, textAlign: "center" }}>Green rings are job-site geofences · updates every 10s · amber = flagged punch</p>
             </Card>
+
+            {(() => {
+              const offline = live.filter((p) => p.signal_lost || p.location_disabled);
+              if (offline.length === 0) return null;
+              return (
+                <Card style={{ borderColor: C.red }}>
+                  <h3 style={{ ...h3, color: C.red }}>⚠ Offline / Not Reporting ({offline.length})</h3>
+                  <p style={{ color: C.muted, fontSize: 12, marginTop: -6, marginBottom: 12 }}>
+                    App hasn't reported in a while (killed by battery saver, location off, or no signal). Their time isn't counting.
+                  </p>
+                  {offline.map((p) => {
+                    const digits = (p.phone || "").replace(/\D/g, "");
+                    const wa = digits ? `https://wa.me/${digits.length === 10 ? "91" + digits : digits}?text=${encodeURIComponent(`Hi ${p.employee_name}, your FieldTrack app seems offline. Please open it and make sure Location is ON so your work time keeps counting.`)}` : null;
+                    return (
+                      <div key={p.employee_id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 0", borderBottom: `1px solid ${C.border}` }}>
+                        <div>
+                          <span style={{ color: C.text, fontSize: 14, fontWeight: 600 }}>{p.employee_name}</span>
+                          <span style={{ color: C.muted, fontSize: 12, marginLeft: 8 }}>
+                            {p.location_disabled ? "Location OFF" : `silent ${p.minutes_since_update}m`}
+                          </span>
+                        </div>
+                        {wa ? (
+                          <a href={wa} target="_blank" rel="noreferrer"
+                            style={{ background: "#25D366", color: "#fff", fontSize: 11, fontWeight: 700, padding: "4px 10px", borderRadius: 7, textDecoration: "none", whiteSpace: "nowrap" }}>
+                            WhatsApp
+                          </a>
+                        ) : (
+                          <span style={{ color: C.muted, fontSize: 11 }}>no number</span>
+                        )}
+                      </div>
+                    );
+                  })}
+                </Card>
+              );
+            })()}
+
             <Card>
               <h3 style={h3}>Currently Clocked In ({live.length})</h3>
               {live.length === 0 && <p style={{ color: C.muted, fontSize: 13 }}>Nobody is clocked in right now.</p>}
