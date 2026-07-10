@@ -38,6 +38,7 @@ export default function App() {
   const [empFilter, setEmpFilter] = useState("all");
   const [editEmp, setEditEmp] = useState(null);
   const [selfieView, setSelfieView] = useState(null);   // {loading, image}
+  const [editRec, setEditRec] = useState(null);          // record being time-corrected
 
   async function loadEmployees() {
     try {
@@ -156,6 +157,34 @@ export default function App() {
       phone: emp.phone || "",
       pin: "",   // blank = leave unchanged
     });
+  }
+
+  function toLocalInput(iso) {
+    if (!iso) return "";
+    const d = new Date(iso);
+    const p = (n) => String(n).padStart(2, "0");
+    return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`;
+  }
+  function openEditRec(r) {
+    setEditRec({
+      id: r.id,
+      name: r.employee_name,
+      clock_in: toLocalInput(r.clock_in),
+      clock_out: toLocalInput(r.clock_out),
+    });
+  }
+  async function saveEditRec() {
+    const fields = {};
+    if (editRec.clock_in) fields.clock_in = new Date(editRec.clock_in).toISOString();
+    if (editRec.clock_out) fields.clock_out = new Date(editRec.clock_out).toISOString();
+    try {
+      await api.editAttendance(editRec.id, fields);
+      setEmpMsg(`✓ ${editRec.name}'s times corrected`);
+      setEditRec(null);
+      loadAll();
+    } catch (e) {
+      setError("Could not save: " + e.message);
+    }
   }
 
   async function viewSelfie(selfieId) {
@@ -429,6 +458,7 @@ export default function App() {
     { label: "Absent", value: dash?.absent_today, color: C.red, icon: Users, key: "absent" },
     { label: "Late", value: dash?.late_today, color: C.amber, icon: Clock, key: "late" },
     { label: "Flagged", value: dash?.flagged_today, color: C.amber, icon: AlertTriangle, key: "flagged" },
+    { label: "Location OFF", value: dash?.location_off_now, color: C.red, icon: AlertTriangle, key: "location_off" },
     { label: "Blocked", value: dash?.blocked_attempts_today, color: C.red, icon: ShieldAlert, key: "blocked_attempts" },
   ];
 
@@ -633,6 +663,8 @@ export default function App() {
                   <input type="date" value={range.start} onChange={(e) => setRange({ ...range, start: e.target.value })} style={dateInp} />
                   <span style={{ color: C.muted }}>→</span>
                   <input type="date" value={range.end} onChange={(e) => setRange({ ...range, end: e.target.value })} style={dateInp} />
+                  <button onClick={() => setRange({ start: daysAgo(7), end: todayStr() })} style={{ ...btnSecondary, padding: "7px 10px", fontSize: 12 }}>This Week</button>
+                  <button onClick={() => setRange({ start: daysAgo(30), end: todayStr() })} style={{ ...btnSecondary, padding: "7px 10px", fontSize: 12 }}>This Month</button>
                   <button onClick={loadAll} style={{ ...btnSecondary, padding: "7px 12px" }}>Apply</button>
                   <button onClick={exportCsv} style={btnPrimary}>
                     <Download size={14} /> {empFilter === "all" ? "Excel Report (all)" : `Excel: ${empFilter}`}
@@ -678,6 +710,9 @@ export default function App() {
                       <button onClick={() => viewSelfie(r.clock_in_location.selfie)} title="View clock-in selfie"
                         style={{ background: "transparent", border: "none", cursor: "pointer", fontSize: 13, marginLeft: 4 }}>📷</button>
                     )}
+                    <button onClick={() => openEditRec(r)} title="Correct these times"
+                      style={{ background: "transparent", border: "none", cursor: "pointer", fontSize: 12, marginLeft: 4, color: C.muted }}>✎</button>
+                    {r.manually_edited && <span style={{ color: C.amber, fontSize: 10, marginLeft: 3 }}>edited</span>}
                   </div>
                   <div style={{ color: C.muted }}>{fmtDur(r.duration_minutes)}</div>
                   <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
@@ -1040,6 +1075,31 @@ export default function App() {
             <div style={{ display: "flex", gap: 10, marginTop: 18 }}>
               <button onClick={saveEdit} style={{ ...btnPrimary, flex: 1 }}>Save Changes</button>
               <button onClick={() => setEditEmp(null)} style={{ ...btnSecondary, flex: 1 }}>Cancel</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {editRec && (
+        <div onClick={() => setEditRec(null)}
+          style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)", zIndex: 100001, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
+          <div onClick={(ev) => ev.stopPropagation()}
+            style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 14, padding: 22, width: "100%", maxWidth: 380 }}>
+            <h3 style={{ ...h3, marginTop: 0 }}>Correct Times — {editRec.name}</h3>
+            <p style={{ color: C.muted, fontSize: 12, marginTop: -6, marginBottom: 14 }}>
+              Use this only to fix genuine errors (GPS failed, forgot to punch). The record will be marked "edited".
+            </p>
+            <label style={{ color: C.muted, fontSize: 12 }}>Clock in</label>
+            <input type="datetime-local" value={editRec.clock_in}
+              onChange={(e) => setEditRec({ ...editRec, clock_in: e.target.value })}
+              style={{ ...inp, width: "100%", marginBottom: 10 }} />
+            <label style={{ color: C.muted, fontSize: 12 }}>Clock out</label>
+            <input type="datetime-local" value={editRec.clock_out}
+              onChange={(e) => setEditRec({ ...editRec, clock_out: e.target.value })}
+              style={{ ...inp, width: "100%" }} />
+            <div style={{ display: "flex", gap: 10, marginTop: 18 }}>
+              <button onClick={saveEditRec} style={{ ...btnPrimary, flex: 1 }}>Save</button>
+              <button onClick={() => setEditRec(null)} style={{ ...btnSecondary, flex: 1 }}>Cancel</button>
             </div>
           </div>
         </div>

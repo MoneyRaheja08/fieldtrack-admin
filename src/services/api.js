@@ -54,6 +54,7 @@ export const api = {
   resetDevice: (id) => request(`/auth/reset-device/${id}`, { method: "POST" }),
   createSite: (site) => request("/admin/sites", { method: "POST", body: site }),
   editEmployee: (id, fields) => request(`/admin/employees/${id}`, { method: "PATCH", body: fields }),
+  editAttendance: (id, fields) => request(`/admin/attendance/${id}`, { method: "PATCH", body: fields }),
   selfie: (id) => request(`/admin/selfie/${id}`),
   deleteSite: (id) => request(`/admin/sites/${id}`, { method: "DELETE" }),
   setSiteWifi: (id, wifi_bssids) => request(`/admin/sites/${id}/wifi`, { method: "PATCH", body: { wifi_bssids } }),
