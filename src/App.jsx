@@ -29,7 +29,7 @@ export default function App() {
   const [error, setError] = useState("");
   const [presenceFor, setPresenceFor] = useState(null); // {id, data}
   const [employees, setEmployees] = useState([]);
-  const [newEmp, setNewEmp] = useState({ name: "", employee_code: "", pin: "", job_title: "", phone: "", assigned_site_ids: [] });
+  const [newEmp, setNewEmp] = useState({ name: "", employee_code: "", pin: "", job_title: "", phone: "", assigned_site_ids: [], monthly_salary: "", shift_start: "11:00", shift_end: "20:30", offs_per_month: "" });
   const [waLink, setWaLink] = useState(null);
   const [empMsg, setEmpMsg] = useState("");
   const [tileView, setTileView] = useState(null); // {key, label, color, list}
@@ -83,6 +83,10 @@ export default function App() {
       if (newEmp.job_title.trim()) body.job_title = newEmp.job_title.trim();
       if (newEmp.phone.trim()) body.phone = newEmp.phone.trim();
       if (newEmp.assigned_site_ids && newEmp.assigned_site_ids.length) body.assigned_site_ids = newEmp.assigned_site_ids;
+      if (newEmp.monthly_salary !== "") body.monthly_salary = Number(newEmp.monthly_salary);
+      if (newEmp.offs_per_month !== "") body.offs_per_month = Number(newEmp.offs_per_month);
+      if (newEmp.shift_start) body.shift_start = newEmp.shift_start;
+      if (newEmp.shift_end) body.shift_end = newEmp.shift_end;
       await api.createEmployee(body);
 
       // Offer to send credentials on WhatsApp (opens with message pre-filled)
@@ -96,7 +100,7 @@ export default function App() {
       } else {
         setEmpMsg("✓ Employee added");
       }
-      setNewEmp({ name: "", employee_code: "", pin: "", job_title: "", phone: "", assigned_site_ids: [] });
+      setNewEmp({ name: "", employee_code: "", pin: "", job_title: "", phone: "", assigned_site_ids: [], monthly_salary: "", shift_start: "11:00", shift_end: "20:30", offs_per_month: "" });
       loadEmployees();
     } catch (e) {
       setEmpMsg("✗ " + e.message);
@@ -876,6 +880,18 @@ export default function App() {
                 <input placeholder="WhatsApp no. (optional)" value={newEmp.phone}
                   onChange={(e) => setNewEmp({ ...newEmp, phone: e.target.value.replace(/[^\d+]/g, "") })}
                   style={inp} />
+                <input type="number" placeholder="Monthly salary ₹" value={newEmp.monthly_salary}
+                  onChange={(e) => setNewEmp({ ...newEmp, monthly_salary: e.target.value })}
+                  style={inp} />
+                <input type="time" title="Shift start" value={newEmp.shift_start}
+                  onChange={(e) => setNewEmp({ ...newEmp, shift_start: e.target.value })}
+                  style={inp} />
+                <input type="time" title="Shift end" value={newEmp.shift_end}
+                  onChange={(e) => setNewEmp({ ...newEmp, shift_end: e.target.value })}
+                  style={inp} />
+                <input type="number" placeholder="Offs/month" value={newEmp.offs_per_month}
+                  onChange={(e) => setNewEmp({ ...newEmp, offs_per_month: e.target.value })}
+                  style={inp} />
                 <button onClick={addEmployee} style={{ ...btnPrimary, padding: "9px 12px" }}>
                   <Plus size={15} /> Add
                 </button>
@@ -952,9 +968,9 @@ export default function App() {
                       </button>
                     )}
                     {e.role !== "admin" && (
-                      <button onClick={() => setRate(e)} title="Set hourly pay rate"
+                      <button onClick={() => openEdit(e)} title="Set monthly salary"
                         style={{ ...btnSecondary, padding: "5px 9px", fontSize: 12 }}>
-                        ₹{e.hourly_rate || 0}/hr
+                        {e.monthly_salary ? `₹${e.monthly_salary.toLocaleString()}/mo` : "Set salary"}
                       </button>
                     )}
                     {e.role !== "admin" && (
