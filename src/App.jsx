@@ -283,6 +283,20 @@ export default function App() {
     }
   }
 
+  async function exportPayroll() {
+    try {
+      const blob = await api.payrollExport(payRange.start, payRange.end);
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `payroll_${payRange.start}_to_${payRange.end}.xlsx`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      setError("Excel export failed: " + e.message);
+    }
+  }
+
   async function resetDevice(id) {
     try {
       await api.resetDevice(id);
@@ -760,6 +774,11 @@ export default function App() {
                 <input type="date" value={payRange.end}
                   onChange={(e) => setPayRange({ ...payRange, end: e.target.value })} style={inp} />
                 <button onClick={runPayroll} style={btnPrimary}>Calculate</button>
+                {payrollData && (
+                  <button onClick={exportPayroll} style={{ ...btnSecondary, display: "flex", alignItems: "center", gap: 6 }}>
+                    <Download size={14} /> Excel
+                  </button>
+                )}
               </div>
             </Card>
 
@@ -775,29 +794,36 @@ export default function App() {
                 </div>
                 {payrollData.rows.length === 0 && <p style={{ color: C.muted }}>No attendance in this range.</p>}
                 {payrollData.rows.map((r) => (
-                  <div key={r.employee_id} style={rowStyle}>
-                    <div>
+                  <div key={r.employee_id} style={{ ...rowStyle, alignItems: "flex-start" }}>
+                    <div style={{ flex: 1 }}>
                       <div style={{ color: C.text, fontWeight: 600 }}>{r.name}</div>
-                      <div style={{ color: C.muted, fontSize: 12 }}>
-                        {r.basis === "salary" ? (
-                          <>
-                            {r.hours} hrs worked · ₹{r.hourly_rate}/hr
-                            <span style={{ color: C.muted }}> (₹{r.monthly_salary?.toLocaleString()}/mo ÷ {r.standard_hours}h standard)</span>
-                            {r.overtime_hours > 0 && (
-                              <div style={{ color: C.amber, marginTop: 2 }}>
-                                ⏱ {r.regular_hours}h regular + {r.overtime_hours}h overtime (₹{r.overtime_pay?.toLocaleString()})
-                              </div>
-                            )}
-                          </>
-                        ) : (
-                          <>
-                            {r.hours} hrs × ₹{r.hourly_rate}/hr
-                            {r.hourly_rate === 0 && <span style={{ color: C.amber }}> · set salary in Employees → Edit</span>}
-                          </>
-                        )}
-                      </div>
+                      {r.basis === "salary" ? (
+                        <div style={{ marginTop: 4 }}>
+                          <div style={{ color: C.muted, fontSize: 11 }}>
+                            ₹{r.monthly_salary?.toLocaleString()}/mo ÷ {r.standard_hours}h standard = ₹{r.hourly_rate}/hr · worked {r.hours}h
+                          </div>
+                          <div style={{ display: "flex", gap: 16, marginTop: 4 }}>
+                            <div>
+                              <div style={{ color: C.muted, fontSize: 11 }}>Regular ({r.regular_hours}h)</div>
+                              <div style={{ color: C.text, fontSize: 14, fontWeight: 600 }}>₹{r.regular_pay?.toLocaleString()}</div>
+                            </div>
+                            <div>
+                              <div style={{ color: r.overtime_hours > 0 ? C.amber : C.muted, fontSize: 11 }}>Overtime ({r.overtime_hours}h)</div>
+                              <div style={{ color: r.overtime_hours > 0 ? C.amber : C.muted, fontSize: 14, fontWeight: 600 }}>₹{r.overtime_pay?.toLocaleString()}</div>
+                            </div>
+                          </div>
+                        </div>
+                      ) : (
+                        <div style={{ color: C.muted, fontSize: 12, marginTop: 2 }}>
+                          {r.hours} hrs × ₹{r.hourly_rate}/hr
+                          {r.hourly_rate === 0 && <span style={{ color: C.amber }}> · set salary in Employees → Edit</span>}
+                        </div>
+                      )}
                     </div>
-                    <div style={{ color: C.green, fontSize: 16, fontWeight: 700 }}>₹{r.pay.toLocaleString()}</div>
+                    <div style={{ textAlign: "right" }}>
+                      <div style={{ color: C.muted, fontSize: 10 }}>TOTAL</div>
+                      <div style={{ color: C.green, fontSize: 16, fontWeight: 700 }}>₹{r.pay.toLocaleString()}</div>
+                    </div>
                   </div>
                 ))}
               </Card>

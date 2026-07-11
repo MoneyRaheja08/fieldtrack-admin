@@ -51,6 +51,13 @@ export const api = {
   forceClockOut: (id) => request(`/admin/attendance/${id}/force-clockout`, { method: "POST" }),
   trail: (id) => request(`/admin/trail/${id}`),
   payroll: (start, end) => request(`/admin/payroll?start=${start}&end=${end}`),
+  payrollExport: async (start, end) => {
+    const res = await fetch(`${BASE_URL}/admin/payroll/export?start=${start}&end=${end}`, {
+      headers: { Authorization: `Bearer ${getToken()}` },
+    });
+    if (!res.ok) throw new Error("Export failed");
+    return res.blob();
+  },
   resetDevice: (id) => request(`/auth/reset-device/${id}`, { method: "POST" }),
   createSite: (site) => request("/admin/sites", { method: "POST", body: site }),
   editEmployee: (id, fields) => request(`/admin/employees/${id}`, { method: "PATCH", body: fields }),
