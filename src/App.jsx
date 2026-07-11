@@ -29,7 +29,7 @@ export default function App() {
   const [error, setError] = useState("");
   const [presenceFor, setPresenceFor] = useState(null); // {id, data}
   const [employees, setEmployees] = useState([]);
-  const [newEmp, setNewEmp] = useState({ name: "", employee_code: "", pin: "", job_title: "", phone: "" });
+  const [newEmp, setNewEmp] = useState({ name: "", employee_code: "", pin: "", job_title: "", phone: "", assigned_site_ids: [] });
   const [waLink, setWaLink] = useState(null);
   const [empMsg, setEmpMsg] = useState("");
   const [tileView, setTileView] = useState(null); // {key, label, color, list}
@@ -82,6 +82,7 @@ export default function App() {
       };
       if (newEmp.job_title.trim()) body.job_title = newEmp.job_title.trim();
       if (newEmp.phone.trim()) body.phone = newEmp.phone.trim();
+      if (newEmp.assigned_site_ids && newEmp.assigned_site_ids.length) body.assigned_site_ids = newEmp.assigned_site_ids;
       await api.createEmployee(body);
 
       // Offer to send credentials on WhatsApp (opens with message pre-filled)
@@ -95,7 +96,7 @@ export default function App() {
       } else {
         setEmpMsg("✓ Employee added");
       }
-      setNewEmp({ name: "", employee_code: "", pin: "", job_title: "", phone: "" });
+      setNewEmp({ name: "", employee_code: "", pin: "", job_title: "", phone: "", assigned_site_ids: [] });
       loadEmployees();
     } catch (e) {
       setEmpMsg("✗ " + e.message);
@@ -157,6 +158,10 @@ export default function App() {
       phone: emp.phone || "",
       pin: "",   // blank = leave unchanged
       assigned_site_ids: emp.assigned_site_ids || [],
+      monthly_salary: emp.monthly_salary || "",
+      offs_per_month: emp.offs_per_month || "",
+      shift_start: emp.shift_start || "11:00",
+      shift_end: emp.shift_end || "20:30",
     });
   }
 
@@ -207,6 +212,10 @@ export default function App() {
     if (editEmp.employee_code.trim()) fields.employee_code = editEmp.employee_code.trim();
     if (editEmp.pin.trim()) fields.pin = editEmp.pin.trim();   // only if entered
     fields.assigned_site_ids = editEmp.assigned_site_ids || [];
+    if (editEmp.monthly_salary !== "") fields.monthly_salary = Number(editEmp.monthly_salary);
+    if (editEmp.offs_per_month !== "") fields.offs_per_month = Number(editEmp.offs_per_month);
+    if (editEmp.shift_start) fields.shift_start = editEmp.shift_start;
+    if (editEmp.shift_end) fields.shift_end = editEmp.shift_end;
     try {
       await api.editEmployee(editEmp.id, fields);
       setEmpMsg(`✓ ${fields.name || "Employee"} updated`);
@@ -738,8 +747,8 @@ export default function App() {
             <Card>
               <h3 style={h3}>Payroll</h3>
               <p style={{ color: C.muted, fontSize: 13, marginTop: -6, marginBottom: 12 }}>
-                Pay = net hours worked (time on site) × each employee's hourly rate.
-                Set rates in the Employees tab.
+                Pay = (monthly salary ÷ standard monthly hours) × actual hours worked.
+                Set salary, shift times & offs per employee in Employees → Edit.
               </p>
               <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
                 <input type="date" value={payRange.start}
@@ -766,8 +775,22 @@ export default function App() {
                     <div>
                       <div style={{ color: C.text, fontWeight: 600 }}>{r.name}</div>
                       <div style={{ color: C.muted, fontSize: 12 }}>
-                        {r.hours} hrs × ₹{r.hourly_rate}/hr
-                        {r.hourly_rate === 0 && <span style={{ color: C.amber }}> · set rate in Employees</span>}
+                        {r.basis === "salary" ? (
+                          <>
+                            {r.hours} hrs worked · ₹{r.hourly_rate}/hr
+                            <span style={{ color: C.muted }}> (₹{r.monthly_salary?.toLocaleString()}/mo ÷ {r.standard_hours}h standard)</span>
+                            {r.overtime_hours > 0 && (
+                              <div style={{ color: C.amber, marginTop: 2 }}>
+                                ⏱ {r.regular_hours}h regular + {r.overtime_hours}h overtime (₹{r.overtime_pay?.toLocaleString()})
+                              </div>
+                            )}
+                          </>
+                        ) : (
+                          <>
+                            {r.hours} hrs × ₹{r.hourly_rate}/hr
+                            {r.hourly_rate === 0 && <span style={{ color: C.amber }}> · set salary in Employees → Edit</span>}
+                          </>
+                        )}
                       </div>
                     </div>
                     <div style={{ color: C.green, fontSize: 16, fontWeight: 700 }}>₹{r.pay.toLocaleString()}</div>
@@ -857,6 +880,29 @@ export default function App() {
                   <Plus size={15} /> Add
                 </button>
               </div>
+              {sites.length > 0 && (
+                <div style={{ marginTop: 10 }}>
+                  <div style={{ fontSize: 12, color: C.muted, marginBottom: 6 }}>
+                    Allowed job sites (optional — leave unticked = any site):
+                  </div>
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: 12 }}>
+                    {sites.map((s) => {
+                      const on = (newEmp.assigned_site_ids || []).includes(s.id);
+                      return (
+                        <label key={s.id} style={{ display: "flex", alignItems: "center", gap: 6, cursor: "pointer", color: C.text, fontSize: 13 }}>
+                          <input type="checkbox" checked={on}
+                            onChange={(e) => {
+                              const cur = new Set(newEmp.assigned_site_ids || []);
+                              if (e.target.checked) cur.add(s.id); else cur.delete(s.id);
+                              setNewEmp({ ...newEmp, assigned_site_ids: [...cur] });
+                            }} />
+                          {s.name}
+                        </label>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
               {empMsg && (
                 <p style={{ fontSize: 13, marginTop: 10, color: empMsg.startsWith("✓") ? C.green : C.red }}>{empMsg}</p>
               )}
@@ -1072,6 +1118,32 @@ export default function App() {
               <div>
                 <label style={{ color: C.muted, fontSize: 12 }}>WhatsApp number</label>
                 <input value={editEmp.phone} onChange={(e) => setEditEmp({ ...editEmp, phone: e.target.value.replace(/[^\d+]/g, "") })} style={{ ...inp, width: "100%" }} />
+              </div>
+              <div>
+                <label style={{ color: C.muted, fontSize: 12 }}>Monthly salary (₹)</label>
+                <input type="number" value={editEmp.monthly_salary}
+                  onChange={(e) => setEditEmp({ ...editEmp, monthly_salary: e.target.value })}
+                  placeholder="e.g. 20000" style={{ ...inp, width: "100%" }} />
+              </div>
+              <div style={{ display: "flex", gap: 8 }}>
+                <div style={{ flex: 1 }}>
+                  <label style={{ color: C.muted, fontSize: 12 }}>Shift start</label>
+                  <input type="time" value={editEmp.shift_start}
+                    onChange={(e) => setEditEmp({ ...editEmp, shift_start: e.target.value })}
+                    style={{ ...inp, width: "100%" }} />
+                </div>
+                <div style={{ flex: 1 }}>
+                  <label style={{ color: C.muted, fontSize: 12 }}>Shift end</label>
+                  <input type="time" value={editEmp.shift_end}
+                    onChange={(e) => setEditEmp({ ...editEmp, shift_end: e.target.value })}
+                    style={{ ...inp, width: "100%" }} />
+                </div>
+                <div style={{ width: 80 }}>
+                  <label style={{ color: C.muted, fontSize: 12 }}>Offs/mo</label>
+                  <input type="number" value={editEmp.offs_per_month}
+                    onChange={(e) => setEditEmp({ ...editEmp, offs_per_month: e.target.value })}
+                    placeholder="4" style={{ ...inp, width: "100%" }} />
+                </div>
               </div>
               <div>
                 <label style={{ color: C.muted, fontSize: 12 }}>Allowed job sites</label>
