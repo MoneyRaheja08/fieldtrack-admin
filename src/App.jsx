@@ -156,6 +156,7 @@ export default function App() {
       job_title: emp.job_title || "",
       phone: emp.phone || "",
       pin: "",   // blank = leave unchanged
+      assigned_site_ids: emp.assigned_site_ids || [],
     });
   }
 
@@ -205,6 +206,7 @@ export default function App() {
     fields.phone = editEmp.phone.trim();
     if (editEmp.employee_code.trim()) fields.employee_code = editEmp.employee_code.trim();
     if (editEmp.pin.trim()) fields.pin = editEmp.pin.trim();   // only if entered
+    fields.assigned_site_ids = editEmp.assigned_site_ids || [];
     try {
       await api.editEmployee(editEmp.id, fields);
       setEmpMsg(`✓ ${fields.name || "Employee"} updated`);
@@ -1070,6 +1072,29 @@ export default function App() {
               <div>
                 <label style={{ color: C.muted, fontSize: 12 }}>WhatsApp number</label>
                 <input value={editEmp.phone} onChange={(e) => setEditEmp({ ...editEmp, phone: e.target.value.replace(/[^\d+]/g, "") })} style={{ ...inp, width: "100%" }} />
+              </div>
+              <div>
+                <label style={{ color: C.muted, fontSize: 12 }}>Allowed job sites</label>
+                <div style={{ fontSize: 11, color: C.muted, marginBottom: 6 }}>
+                  Tick the sites this employee can clock in at. Leave all unticked = any site.
+                </div>
+                <div style={{ display: "flex", flexDirection: "column", gap: 6, maxHeight: 160, overflowY: "auto" }}>
+                  {sites.map((s) => {
+                    const on = (editEmp.assigned_site_ids || []).includes(s.id);
+                    return (
+                      <label key={s.id} style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer", color: C.text, fontSize: 13 }}>
+                        <input type="checkbox" checked={on}
+                          onChange={(e) => {
+                            const cur = new Set(editEmp.assigned_site_ids || []);
+                            if (e.target.checked) cur.add(s.id); else cur.delete(s.id);
+                            setEditEmp({ ...editEmp, assigned_site_ids: [...cur] });
+                          }} />
+                        {s.name}
+                      </label>
+                    );
+                  })}
+                  {sites.length === 0 && <span style={{ color: C.muted, fontSize: 12 }}>No sites yet — add one in Job Sites.</span>}
+                </div>
               </div>
             </div>
             <div style={{ display: "flex", gap: 10, marginTop: 18 }}>
