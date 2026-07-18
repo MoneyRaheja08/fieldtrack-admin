@@ -859,10 +859,21 @@ export default function App() {
             {alerts.absent?.length > 0 && (
               <Card>
                 <h3 style={{ ...h3, color: C.red }}>Absent Today ({alerts.absent.length})</h3>
-                {alerts.absent.map((a) => (
-                  <div key={a.id} style={rowStyle}>
-                    <span style={{ color: C.text, fontSize: 14 }}>{a.name} <span style={{ color: C.muted }}>· {a.code}</span></span>
-                    <Tag color={C.red}>No clock-in</Tag>
+                {Object.entries(
+                  alerts.absent.reduce((acc, a) => {
+                    const sites = a.sites && a.sites.length ? a.sites : ["Unassigned"];
+                    sites.forEach((s) => { (acc[s] = acc[s] || []).push(a); });
+                    return acc;
+                  }, {})
+                ).map(([site, people]) => (
+                  <div key={site} style={{ marginBottom: 12 }}>
+                    <div style={{ color: C.accent, fontWeight: 700, fontSize: 13, margin: "6px 0" }}>📍 {site} ({people.length})</div>
+                    {people.map((a) => (
+                      <div key={a.id} style={rowStyle}>
+                        <span style={{ color: C.text, fontSize: 14 }}>{a.name} <span style={{ color: C.muted }}>· {a.code}</span></span>
+                        <Tag color={C.red}>No clock-in</Tag>
+                      </div>
+                    ))}
                   </div>
                 ))}
               </Card>
