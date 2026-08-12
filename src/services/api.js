@@ -51,6 +51,14 @@ export const api = {
   forceClockOut: (id) => request(`/admin/attendance/${id}/force-clockout`, { method: "POST" }),
   trail: (id) => request(`/admin/trail/${id}`),
   payroll: (start, end) => request(`/admin/payroll?start=${start}&end=${end}`),
+  muster: (month) => request(`/admin/muster?month=${month}`),
+  musterExport: async (month) => {
+    const res = await fetch(`${BASE_URL}/admin/muster/export?month=${month}`, {
+      headers: { Authorization: `Bearer ${getToken()}` },
+    });
+    if (!res.ok) throw new Error("Muster export failed");
+    return res.blob();
+  },
   payrollExport: async (start, end) => {
     const res = await fetch(`${BASE_URL}/admin/payroll/export?start=${start}&end=${end}`, {
       headers: { Authorization: `Bearer ${getToken()}` },

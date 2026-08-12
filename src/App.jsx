@@ -2,7 +2,7 @@
 import { useState, useEffect, useCallback } from "react";
 import {
   MapPin, Users, Clock, AlertTriangle, ShieldAlert,
-  Download, LogOut, RefreshCw, Trash2, Plus, Activity, UserPlus, Smartphone, Navigation,
+  Download, LogOut, RefreshCw, Trash2, Plus, Activity, UserPlus, Smartphone, Navigation, CalendarDays,
 } from "lucide-react";
 import { api, clearToken, getToken } from "./services/api";
 import { C, fmt, fmtDur, friendlyFlag, Card, Tag, inp } from "./components/ui";
@@ -34,6 +34,8 @@ export default function App() {
   const [empMsg, setEmpMsg] = useState("");
   const [tileView, setTileView] = useState(null); // {key, label, color, list}
   const [payrollData, setPayrollData] = useState(null);
+  const [muster, setMuster] = useState(null);
+  const [musterMonth, setMusterMonth] = useState(() => new Date().toISOString().slice(0, 7));
   const [payRange, setPayRange] = useState({ start: "", end: "" });
   const [empFilter, setEmpFilter] = useState("all");
   const [editEmp, setEditEmp] = useState(null);
@@ -283,6 +285,30 @@ export default function App() {
     }
   }
 
+  async function loadMuster() {
+    try {
+      setMuster(null);
+      const d = await api.muster(musterMonth);
+      setMuster(d);
+    } catch (e) {
+      setError("Muster failed: " + e.message);
+    }
+  }
+
+  async function exportMuster() {
+    try {
+      const blob = await api.musterExport(musterMonth);
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `muster_${musterMonth}.xlsx`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      setError("Muster export failed: " + e.message);
+    }
+  }
+
   async function exportPayroll() {
     try {
       const blob = await api.payrollExport(payRange.start, payRange.end);
@@ -476,6 +502,7 @@ export default function App() {
     { id: "overview", label: "Live Map", icon: MapPin },
     { id: "logs", label: "Attendance", icon: Clock },
     { id: "employees", label: "Employees", icon: Users },
+    { id: "muster", label: "Muster", icon: CalendarDays },
     { id: "payroll", label: "Payroll", icon: Download },
     { id: "alerts", label: "Alerts", icon: AlertTriangle },
     { id: "sites", label: "Job Sites", icon: Activity },
@@ -760,6 +787,69 @@ export default function App() {
         })()}
 
         {/* PAYROLL */}
+        {tab === "muster" && (
+          <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+            <Card>
+              <h3 style={h3}>Monthly Muster</h3>
+              <p style={{ color: C.muted, fontSize: 13, marginTop: -4 }}>
+                The month-end attendance register. P = Present · H = Half day (worked less than half the shift) · A = Absent.
+                Payable days counts each half day as 0.5.
+              </p>
+              <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", marginTop: 10 }}>
+                <input type="month" value={musterMonth}
+                  onChange={(e) => setMusterMonth(e.target.value)} style={dateInp} />
+                <button onClick={loadMuster} style={btnPrimary}>Load Muster</button>
+                {muster && (
+                  <button onClick={exportMuster} style={{ ...btnSecondary, display: "flex", alignItems: "center", gap: 6 }}>
+                    <Download size={14} /> Excel
+                  </button>
+                )}
+              </div>
+            </Card>
+
+            {muster && (
+              <Card style={{ overflowX: "auto" }}>
+                <table style={{ borderCollapse: "collapse", fontSize: 12, width: "100%" }}>
+                  <thead>
+                    <tr>
+                      <th style={{ ...musterTh, textAlign: "left", position: "sticky", left: 0, background: C.card, minWidth: 140 }}>Employee</th>
+                      {Array.from({ length: muster.days_in_month }, (_, i) => i + 1).map((d) => (
+                        <th key={d} style={{ ...musterTh, minWidth: 26 }}>{d}</th>
+                      ))}
+                      <th style={musterTh}>P</th>
+                      <th style={musterTh}>H</th>
+                      <th style={musterTh}>A</th>
+                      <th style={{ ...musterTh, minWidth: 60 }}>Payable</th>
+                      <th style={{ ...musterTh, minWidth: 50 }}>Hrs</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {muster.rows.map((r) => (
+                      <tr key={r.employee_id}>
+                        <td style={{ ...musterTd, textAlign: "left", position: "sticky", left: 0, background: C.card, fontWeight: 600 }}>
+                          {r.name}
+                        </td>
+                        {Array.from({ length: muster.days_in_month }, (_, i) => i + 1).map((d) => {
+                          const m = r.days[String(d)] || "A";
+                          const bg = m === "P" ? "#12351f" : m === "H" ? "#3a2f14" : "#3a1a1a";
+                          const fg = m === "P" ? C.green : m === "H" ? C.amber : C.red;
+                          return <td key={d} style={{ ...musterTd, background: bg, color: fg, fontWeight: 700 }}>{m}</td>;
+                        })}
+                        <td style={{ ...musterTd, color: C.green, fontWeight: 700 }}>{r.present_days}</td>
+                        <td style={{ ...musterTd, color: C.amber, fontWeight: 700 }}>{r.half_days}</td>
+                        <td style={{ ...musterTd, color: C.red, fontWeight: 700 }}>{r.absent_days}</td>
+                        <td style={{ ...musterTd, fontWeight: 700 }}>{r.payable_days}</td>
+                        <td style={{ ...musterTd, color: C.muted }}>{r.total_hours}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+                {muster.rows.length === 0 && <p style={{ color: C.muted }}>No employees found.</p>}
+              </Card>
+            )}
+          </div>
+        )}
+
         {tab === "payroll" && (
           <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
             <Card>
@@ -1281,4 +1371,6 @@ const avatar = { width: 36, height: 36, borderRadius: "50%", background: C.accen
 const btnSecondary = { background: C.surface, border: `1px solid ${C.border}`, borderRadius: 8, padding: "8px 12px", color: C.text, cursor: "pointer", display: "flex", alignItems: "center", gap: 6, fontSize: 13 };
 const btnPrimary = { background: C.accent, color: "#fff", border: "none", borderRadius: 8, padding: "7px 14px", fontSize: 13, fontWeight: 600, cursor: "pointer", display: "flex", alignItems: "center", gap: 6 };
 const dateInp = { background: C.surface, border: `1px solid ${C.border}`, borderRadius: 6, padding: "6px 8px", color: C.text, fontSize: 12 };
+const musterTh = { padding: "6px 4px", textAlign: "center", color: C.muted, fontSize: 11, fontWeight: 700, borderBottom: `1px solid ${C.border}`, whiteSpace: "nowrap" };
+const musterTd = { padding: "5px 4px", textAlign: "center", borderBottom: `1px solid ${C.border}`, color: C.text, whiteSpace: "nowrap" };
 const tagInline = { fontSize: 10, fontWeight: 600, borderRadius: 4, padding: "1px 6px", marginLeft: 8 };
