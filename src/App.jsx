@@ -37,6 +37,7 @@ export default function App() {
   const [muster, setMuster] = useState(null);
   const [punch, setPunch] = useState(null);
   const [punchDate, setPunchDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [reportTab, setReportTab] = useState("punch");   // which report is open
   const [musterMonth, setMusterMonth] = useState(() => new Date().toISOString().slice(0, 7));
   const [payRange, setPayRange] = useState({ start: "", end: "" });
   const [empFilter, setEmpFilter] = useState("all");
@@ -528,8 +529,7 @@ export default function App() {
     { id: "overview", label: "Live Map", icon: MapPin },
     { id: "logs", label: "Attendance", icon: Clock },
     { id: "employees", label: "Employees", icon: Users },
-    { id: "punch", label: "Daily Punch", icon: Clock },
-    { id: "muster", label: "Muster", icon: CalendarDays },
+    { id: "reports", label: "Reports", icon: CalendarDays },
     { id: "payroll", label: "Payroll", icon: Download },
     { id: "alerts", label: "Alerts", icon: AlertTriangle },
     { id: "sites", label: "Job Sites", icon: Activity },
@@ -814,7 +814,25 @@ export default function App() {
         })()}
 
         {/* PAYROLL */}
-        {tab === "punch" && (
+        {tab === "reports" && (
+          <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+              {[["punch", "Daily Punch"], ["muster", "Muster"]].map(([id, label]) => (
+                <button key={id} onClick={() => setReportTab(id)}
+                  style={{
+                    ...btnSecondary,
+                    padding: "8px 14px",
+                    background: reportTab === id ? C.accent : C.surface,
+                    color: reportTab === id ? "#fff" : C.muted,
+                    borderColor: reportTab === id ? C.accent : C.border,
+                    fontWeight: 600,
+                  }}>
+                  {label}
+                </button>
+              ))}
+            </div>
+
+        {reportTab === "punch" && (
           <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
             <Card>
               <h3 style={h3}>Daily Punch Report</h3>
@@ -892,7 +910,7 @@ export default function App() {
           </div>
         )}
 
-        {tab === "muster" && (
+        {reportTab === "muster" && (
           <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
             <Card>
               <h3 style={h3}>Monthly Muster</h3>
@@ -952,6 +970,8 @@ export default function App() {
                 {muster.rows.length === 0 && <p style={{ color: C.muted }}>No employees found.</p>}
               </Card>
             )}
+          </div>
+        )}
           </div>
         )}
 
