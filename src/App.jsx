@@ -35,6 +35,8 @@ export default function App() {
   const [tileView, setTileView] = useState(null); // {key, label, color, list}
   const [payrollData, setPayrollData] = useState(null);
   const [muster, setMuster] = useState(null);
+  const [punch, setPunch] = useState(null);
+  const [punchDate, setPunchDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [musterMonth, setMusterMonth] = useState(() => new Date().toISOString().slice(0, 7));
   const [payRange, setPayRange] = useState({ start: "", end: "" });
   const [empFilter, setEmpFilter] = useState("all");
@@ -285,6 +287,30 @@ export default function App() {
     }
   }
 
+  async function loadPunch() {
+    try {
+      setPunch(null);
+      const d = await api.dailyPunch(punchDate);
+      setPunch(d);
+    } catch (e) {
+      setError("Daily punch failed: " + e.message);
+    }
+  }
+
+  async function exportPunch() {
+    try {
+      const blob = await api.dailyPunchExport(punchDate);
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `daily_punch_${punchDate}.xlsx`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      setError("Export failed: " + e.message);
+    }
+  }
+
   async function loadMuster() {
     try {
       setMuster(null);
@@ -502,6 +528,7 @@ export default function App() {
     { id: "overview", label: "Live Map", icon: MapPin },
     { id: "logs", label: "Attendance", icon: Clock },
     { id: "employees", label: "Employees", icon: Users },
+    { id: "punch", label: "Daily Punch", icon: Clock },
     { id: "muster", label: "Muster", icon: CalendarDays },
     { id: "payroll", label: "Payroll", icon: Download },
     { id: "alerts", label: "Alerts", icon: AlertTriangle },
@@ -787,6 +814,84 @@ export default function App() {
         })()}
 
         {/* PAYROLL */}
+        {tab === "punch" && (
+          <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+            <Card>
+              <h3 style={h3}>Daily Punch Report</h3>
+              <p style={{ color: C.muted, fontSize: 13, marginTop: -4 }}>
+                Every punch for one day — in/out times, hours, site, and any exceptions.
+              </p>
+              <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", marginTop: 10 }}>
+                <input type="date" value={punchDate}
+                  onChange={(e) => setPunchDate(e.target.value)} style={dateInp} />
+                <button onClick={loadPunch} style={btnPrimary}>Load</button>
+                {punch && (
+                  <button onClick={exportPunch} style={{ ...btnSecondary, display: "flex", alignItems: "center", gap: 6 }}>
+                    <Download size={14} /> Excel
+                  </button>
+                )}
+              </div>
+              {punch && (
+                <div style={{ display: "flex", gap: 16, flexWrap: "wrap", marginTop: 12, fontSize: 13 }}>
+                  <span style={{ color: C.text }}><b>{punch.total_punches}</b> <span style={{ color: C.muted }}>punches</span></span>
+                  <span style={{ color: C.green }}><b>{punch.total_hours}</b> <span style={{ color: C.muted }}>hrs</span></span>
+                  <span style={{ color: C.amber }}><b>{punch.late_count}</b> <span style={{ color: C.muted }}>late</span></span>
+                  <span style={{ color: C.accent }}><b>{punch.still_working}</b> <span style={{ color: C.muted }}>still working</span></span>
+                  <span style={{ color: C.red }}><b>{punch.absentees.length}</b> <span style={{ color: C.muted }}>absent</span></span>
+                </div>
+              )}
+            </Card>
+
+            {punch && (
+              <Card style={{ overflowX: "auto" }}>
+                <table style={{ borderCollapse: "collapse", fontSize: 13, width: "100%" }}>
+                  <thead>
+                    <tr>
+                      {["Employee", "Site", "In", "Out", "Hours", "Status", "Exceptions"].map((h) => (
+                        <th key={h} style={{ ...musterTh, textAlign: h === "Employee" || h === "Exceptions" ? "left" : "center" }}>{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {punch.rows.map((r) => (
+                      <tr key={r.record_id}>
+                        <td style={{ ...musterTd, textAlign: "left", fontWeight: 600 }}>
+                          {r.name} <span style={{ color: C.muted, fontWeight: 400 }}>· {r.code}</span>
+                        </td>
+                        <td style={{ ...musterTd, color: C.muted }}>{r.site}</td>
+                        <td style={musterTd}>{r.clock_in || "—"}</td>
+                        <td style={musterTd}>{r.clock_out || "—"}</td>
+                        <td style={{ ...musterTd, color: C.green, fontWeight: 700 }}>{r.hours}</td>
+                        <td style={musterTd}>
+                          <Tag color={r.status === "Working" ? C.accent : C.muted}>{r.status}</Tag>
+                        </td>
+                        <td style={{ ...musterTd, textAlign: "left", color: r.exceptions.length ? C.amber : C.muted }}>
+                          {r.exceptions.length ? r.exceptions.join(", ") : "—"}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+                {punch.rows.length === 0 && <p style={{ color: C.muted }}>No punches on this day.</p>}
+              </Card>
+            )}
+
+            {punch && punch.absentees.length > 0 && (
+              <Card>
+                <h3 style={{ ...h3, color: C.red }}>Absent ({punch.absentees.length})</h3>
+                {punch.absentees.map((a) => (
+                  <div key={a.employee_id} style={rowStyle}>
+                    <span style={{ color: C.text, fontSize: 14 }}>
+                      {a.name} <span style={{ color: C.muted }}>· {a.code}</span>
+                    </span>
+                    <Tag color={C.red}>No punch</Tag>
+                  </div>
+                ))}
+              </Card>
+            )}
+          </div>
+        )}
+
         {tab === "muster" && (
           <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
             <Card>

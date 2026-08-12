@@ -51,6 +51,14 @@ export const api = {
   forceClockOut: (id) => request(`/admin/attendance/${id}/force-clockout`, { method: "POST" }),
   trail: (id) => request(`/admin/trail/${id}`),
   payroll: (start, end) => request(`/admin/payroll?start=${start}&end=${end}`),
+  dailyPunch: (date) => request(`/admin/daily-punch?date=${date}`),
+  dailyPunchExport: async (date) => {
+    const res = await fetch(`${BASE_URL}/admin/daily-punch/export?date=${date}`, {
+      headers: { Authorization: `Bearer ${getToken()}` },
+    });
+    if (!res.ok) throw new Error("Daily punch export failed");
+    return res.blob();
+  },
   muster: (month) => request(`/admin/muster?month=${month}`),
   musterExport: async (month) => {
     const res = await fetch(`${BASE_URL}/admin/muster/export?month=${month}`, {
