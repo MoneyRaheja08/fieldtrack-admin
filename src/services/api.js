@@ -60,6 +60,14 @@ export const api = {
     return res.blob();
   },
   employeeDiagnostics: (empId) => request(`/admin/diagnostics/${empId}`),
+  workingHours: (month) => request(`/admin/working-hours?month=${month}`),
+  workingHoursExport: async (month) => {
+    const res = await fetch(`${BASE_URL}/admin/working-hours/export?month=${month}`, {
+      headers: { Authorization: `Bearer ${getToken()}` },
+    });
+    if (!res.ok) throw new Error("Working hours export failed");
+    return res.blob();
+  },
   muster: (month) => request(`/admin/muster?month=${month}`),
   musterExport: async (month) => {
     const res = await fetch(`${BASE_URL}/admin/muster/export?month=${month}`, {

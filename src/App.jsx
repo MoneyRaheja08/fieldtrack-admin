@@ -39,6 +39,7 @@ export default function App() {
   const [punchDate, setPunchDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [reportTab, setReportTab] = useState("punch");   // which report is open
   const [healthList, setHealthList] = useState(null);
+  const [wHours, setWHours] = useState(null);
   const [healthLoading, setHealthLoading] = useState(false);
   const [musterMonth, setMusterMonth] = useState(() => new Date().toISOString().slice(0, 7));
   const [payRange, setPayRange] = useState({ start: "", end: "" });
@@ -294,6 +295,23 @@ export default function App() {
 
   // Health check across ALL employees — including those clocked out or absent,
   // so you can diagnose "why were their hours low?" after the fact.
+  async function loadWorkingHours() {
+    try {
+      setWHours(null);
+      setWHours(await api.workingHours(musterMonth));
+    } catch (e) { setError("Working hours failed: " + e.message); }
+  }
+
+  async function exportWorkingHours() {
+    try {
+      const blob = await api.workingHoursExport(musterMonth);
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url; a.download = `working_hours_${musterMonth}.xlsx`; a.click();
+      URL.revokeObjectURL(url);
+    } catch (e) { setError("Export failed: " + e.message); }
+  }
+
   async function loadHealthAll() {
     setHealthLoading(true);
     try {
@@ -847,7 +865,7 @@ export default function App() {
         {tab === "reports" && (
           <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
             <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-              {[["punch", "Daily Punch"], ["muster", "Muster"], ["health", "Health"]].map(([id, label]) => (
+              {[["punch", "Daily Punch"], ["hours", "Working Hours"], ["muster", "Muster"], ["health", "Health"]].map(([id, label]) => (
                 <button key={id} onClick={() => setReportTab(id)}
                   style={{
                     ...btnSecondary,
@@ -942,6 +960,80 @@ export default function App() {
                     <Tag color={C.red}>No punch</Tag>
                   </div>
                 ))}
+              </Card>
+            )}
+          </div>
+        )}
+
+        {reportTab === "hours" && (
+          <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+            <Card>
+              <h3 style={h3}>Working Hours Report</h3>
+              <p style={{ color: C.muted, fontSize: 13, marginTop: -4 }}>
+                Day by day, where each person's hours went. <b style={{ color: C.green }}>Worked</b> is
+                time on site — the number payroll pays on. <b style={{ color: C.amber }}>Away</b> is time
+                outside the site or with location switched off.
+              </p>
+              <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", marginTop: 10 }}>
+                <input type="month" value={musterMonth}
+                  onChange={(e) => setMusterMonth(e.target.value)} style={dateInp} />
+                <button onClick={loadWorkingHours} style={btnPrimary}>Load</button>
+                {wHours && (
+                  <button onClick={exportWorkingHours} style={{ ...btnSecondary, display: "flex", alignItems: "center", gap: 6 }}>
+                    <Download size={14} /> Excel
+                  </button>
+                )}
+              </div>
+              {wHours && (
+                <div style={{ display: "flex", gap: 20, marginTop: 12, fontSize: 13 }}>
+                  <span style={{ color: C.muted }}>Total worked{" "}
+                    <b style={{ color: C.green, fontSize: 15 }}>{wHours.grand_worked_hours}h</b></span>
+                  <span style={{ color: C.muted }}>Total away{" "}
+                    <b style={{ color: C.amber, fontSize: 15 }}>{wHours.grand_away_hours}h</b></span>
+                </div>
+              )}
+            </Card>
+
+            {wHours && (
+              <Card style={{ overflowX: "auto" }}>
+                <table style={{ borderCollapse: "collapse", fontSize: 12, width: "100%" }}>
+                  <thead>
+                    <tr>
+                      <th style={{ ...musterTh, textAlign: "left", position: "sticky", left: 0, background: C.card, minWidth: 150 }}>Employee</th>
+                      <th style={{ ...musterTh, minWidth: 62 }}>Worked</th>
+                      <th style={{ ...musterTh, minWidth: 56 }}>Away</th>
+                      {Array.from({ length: wHours.days_in_month }, (_, i) => i + 1).map((d) => (
+                        <th key={d} style={{ ...musterTh, minWidth: 44 }}>{d}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {wHours.rows.map((r) => (
+                      <tr key={r.employee_id}>
+                        <td style={{ ...musterTd, textAlign: "left", position: "sticky", left: 0, background: C.card }}>
+                          <div style={{ color: C.text, fontWeight: 600 }}>{r.name}</div>
+                          <div style={{ color: C.muted, fontSize: 11 }}>{r.job_title || r.code}</div>
+                        </td>
+                        <td style={{ ...musterTd, color: C.green, fontWeight: 700 }}>{r.total_worked_hours}h</td>
+                        <td style={{ ...musterTd, color: r.total_away_hours > 0 ? C.amber : C.muted, fontWeight: 600 }}>
+                          {r.total_away_hours}h
+                        </td>
+                        {Array.from({ length: wHours.days_in_month }, (_, i) => i + 1).map((d) => {
+                          const day = r.days[String(d)] || { worked: 0, away: 0 };
+                          const w = day.worked, a = day.away;
+                          const fmt = (m) => m ? `${Math.floor(m / 60)}:${String(m % 60).padStart(2, "0")}` : "";
+                          return (
+                            <td key={d} style={{ ...musterTd, background: a > 0 ? "#3a2f14" : (w > 0 ? "#12351f" : "transparent") }}>
+                              <div style={{ color: w > 0 ? C.green : C.muted, fontWeight: 600 }}>{fmt(w) || "—"}</div>
+                              {a > 0 && <div style={{ color: C.amber, fontSize: 10 }}>-{fmt(a)}</div>}
+                            </td>
+                          );
+                        })}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+                {wHours.rows.length === 0 && <p style={{ color: C.muted }}>No employees found.</p>}
               </Card>
             )}
           </div>
