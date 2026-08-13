@@ -59,6 +59,7 @@ export const api = {
     if (!res.ok) throw new Error("Daily punch export failed");
     return res.blob();
   },
+  employeeDiagnostics: (empId) => request(`/admin/diagnostics/${empId}`),
   muster: (month) => request(`/admin/muster?month=${month}`),
   musterExport: async (month) => {
     const res = await fetch(`${BASE_URL}/admin/muster/export?month=${month}`, {

@@ -38,6 +38,8 @@ export default function App() {
   const [punch, setPunch] = useState(null);
   const [punchDate, setPunchDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [reportTab, setReportTab] = useState("punch");   // which report is open
+  const [healthList, setHealthList] = useState(null);
+  const [healthLoading, setHealthLoading] = useState(false);
   const [musterMonth, setMusterMonth] = useState(() => new Date().toISOString().slice(0, 7));
   const [payRange, setPayRange] = useState({ start: "", end: "" });
   const [empFilter, setEmpFilter] = useState("all");
@@ -171,6 +173,7 @@ export default function App() {
       offs_per_month: emp.offs_per_month || "",
       shift_start: emp.shift_start || "11:00",
       shift_end: emp.shift_end || "20:30",
+      web_clockin_allowed: !!emp.web_clockin_allowed,
     });
   }
 
@@ -225,6 +228,7 @@ export default function App() {
     if (editEmp.offs_per_month !== "") fields.offs_per_month = Number(editEmp.offs_per_month);
     if (editEmp.shift_start) fields.shift_start = editEmp.shift_start;
     if (editEmp.shift_end) fields.shift_end = editEmp.shift_end;
+    fields.web_clockin_allowed = !!editEmp.web_clockin_allowed;
     try {
       await api.editEmployee(editEmp.id, fields);
       setEmpMsg(`✓ ${fields.name || "Employee"} updated`);
@@ -286,6 +290,32 @@ export default function App() {
     } catch (e) {
       setError("Payroll failed: " + e.message);
     }
+  }
+
+  // Health check across ALL employees — including those clocked out or absent,
+  // so you can diagnose "why were their hours low?" after the fact.
+  async function loadHealthAll() {
+    setHealthLoading(true);
+    try {
+      const emps = await api.employees();
+      const list = (emps || []).filter((e) => e.role !== "admin");
+      const results = await Promise.all(
+        list.map(async (e) => {
+          try {
+            const d = await api.employeeDiagnostics(e.id);
+            return { id: e.id, name: e.name, code: e.employee_code, ...d };
+          } catch {
+            return { id: e.id, name: e.name, code: e.employee_code, verdict: "unknown", detail: "Could not load" };
+          }
+        })
+      );
+      const rank = { stalled: 0, no_pings: 1, slow: 2, healthy: 3, not_clocked_in: 4, unknown: 5 };
+      results.sort((a, b) => (rank[a.verdict] ?? 9) - (rank[b.verdict] ?? 9));
+      setHealthList(results);
+    } catch (e) {
+      setError("Health check failed: " + e.message);
+    }
+    setHealthLoading(false);
   }
 
   async function loadPunch() {
@@ -817,7 +847,7 @@ export default function App() {
         {tab === "reports" && (
           <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
             <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-              {[["punch", "Daily Punch"], ["muster", "Muster"]].map(([id, label]) => (
+              {[["punch", "Daily Punch"], ["muster", "Muster"], ["health", "Health"]].map(([id, label]) => (
                 <button key={id} onClick={() => setReportTab(id)}
                   style={{
                     ...btnSecondary,
@@ -879,7 +909,14 @@ export default function App() {
                         <td style={{ ...musterTd, color: C.muted }}>{r.site}</td>
                         <td style={musterTd}>{r.clock_in || "—"}</td>
                         <td style={musterTd}>{r.clock_out || "—"}</td>
-                        <td style={{ ...musterTd, color: C.green, fontWeight: 700 }}>{r.hours}</td>
+                        <td style={{ ...musterTd, color: C.green, fontWeight: 700 }}>
+                          {r.hours}
+                          {r.span_hours > r.hours && (
+                            <div style={{ color: C.muted, fontSize: 11, fontWeight: 400 }}>
+                              of {r.span_hours}
+                            </div>
+                          )}
+                        </td>
                         <td style={musterTd}>
                           <Tag color={r.status === "Working" ? C.accent : C.muted}>{r.status}</Tag>
                         </td>
@@ -968,6 +1005,69 @@ export default function App() {
                   </tbody>
                 </table>
                 {muster.rows.length === 0 && <p style={{ color: C.muted }}>No employees found.</p>}
+              </Card>
+            )}
+          </div>
+        )}
+
+        {reportTab === "health" && (
+          <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+            <Card>
+              <h3 style={h3}>Tracking Health — all employees</h3>
+              <p style={{ color: C.muted, fontSize: 13, marginTop: -4 }}>
+                Whose phone is actually sending pings. Open this when someone's hours look wrong —
+                it tells you whether it was battery/permissions, location turned off, or genuine
+                absence. Problems are listed first.
+              </p>
+              <button onClick={loadHealthAll} style={{ ...btnPrimary, marginTop: 10 }}
+                disabled={healthLoading}>
+                {healthLoading ? "Checking…" : "Check all employees"}
+              </button>
+            </Card>
+
+            {healthList && (
+              <Card>
+                {healthList.map((h) => {
+                  const col = h.verdict === "healthy" ? C.green
+                    : h.verdict === "slow" ? C.amber
+                    : h.verdict === "not_clocked_in" ? C.muted : C.red;
+                  const icon = h.verdict === "healthy" ? "✅"
+                    : h.verdict === "slow" ? "⚠️"
+                    : h.verdict === "not_clocked_in" ? "—" : "⛔";
+                  return (
+                    <div key={h.id} style={{ borderLeft: `3px solid ${col}`, paddingLeft: 12, marginBottom: 14 }}>
+                      <div style={{ color: C.text, fontWeight: 700, fontSize: 14 }}>
+                        {icon} {h.name} <span style={{ color: C.muted, fontWeight: 400 }}>· {h.code}</span>
+                      </div>
+                      <div style={{ color: col, fontSize: 13, marginTop: 2 }}>{h.detail}</div>
+                      <div style={{ fontSize: 12, marginTop: 3 }}>
+                        <span style={{ color: C.muted }}>App: </span>
+                        <span style={{ color: h.app_outdated ? C.amber : C.muted, fontWeight: h.app_outdated ? 700 : 400 }}>
+                          {h.app_version || "unknown"}
+                          {h.app_outdated === true && " — OUTDATED, needs the new APK"}
+                          {h.app_outdated === false && " ✓ latest"}
+                        </span>
+                      </div>
+                      {h.beats_today != null && (
+                        <div style={{ color: C.muted, fontSize: 12, marginTop: 3 }}>
+                          {h.beats_today} pings · biggest gap {h.largest_gap_minutes}m ·{" "}
+                          <span style={{ color: h.dropped_minutes > 0 ? C.amber : C.muted }}>
+                            {h.dropped_minutes}m not counted
+                          </span>
+                          {h.location_off_events_today > 0 && (
+                            <span style={{ color: C.red }}> · location off {h.location_off_events_today}x</span>
+                          )}
+                        </div>
+                      )}
+                      {h.dropped_gaps?.length > 0 && (
+                        <div style={{ color: C.muted, fontSize: 11, marginTop: 3 }}>
+                          Gaps lost: {h.dropped_gaps.map((g) => `${g.minutes}m`).join(", ")}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+                {healthList.length === 0 && <p style={{ color: C.muted }}>No employees found.</p>}
               </Card>
             )}
           </div>
@@ -1219,6 +1319,14 @@ export default function App() {
                         <Smartphone size={13} /> Reset
                       </button>
                     )}
+                    {e.role !== "admin" && e.web_clockin_allowed && (
+                      <span style={{
+                        background: C.surface, border: `1px solid ${C.accent}`, color: C.accent,
+                        borderRadius: 6, padding: "4px 8px", fontSize: 11, fontWeight: 700,
+                      }} title="Allowed to use the iPhone/web clock-in page">
+                        📱 iPhone
+                      </span>
+                    )}
                     {e.role !== "admin" && (
                       <button onClick={() => openEdit(e)} title="Set monthly salary"
                         style={{ ...btnSecondary, padding: "5px 9px", fontSize: 12 }}>
@@ -1411,6 +1519,18 @@ export default function App() {
                   <input type="number" value={editEmp.offs_per_month}
                     onChange={(e) => setEditEmp({ ...editEmp, offs_per_month: e.target.value })}
                     placeholder="4" style={{ ...inp, width: "100%" }} />
+                </div>
+              </div>
+              <div>
+                <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer", color: C.text, fontSize: 13 }}>
+                  <input type="checkbox" checked={!!editEmp.web_clockin_allowed}
+                    onChange={(e) => setEditEmp({ ...editEmp, web_clockin_allowed: e.target.checked })} />
+                  📱 Allow iPhone / web clock-in
+                </label>
+                <div style={{ fontSize: 11, color: C.muted, marginTop: 4 }}>
+                  Tick ONLY for staff who use an iPhone. Android staff must use the app —
+                  the web page has no background tracking, so it would let them punch in
+                  without the geofence and ping checks.
                 </div>
               </div>
               <div>
