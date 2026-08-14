@@ -472,9 +472,12 @@ export default function App() {
 
   useEffect(() => { if (employee) loadAll(); }, [employee, loadAll]);
 
-  // Load employees when the Employees tab opens
+  // Load employees when a tab that needs the list opens.
+  // Reports needs it too: the Employee Summary report has an employee picker,
+  // and it was rendering an empty dropdown because the list had only ever been
+  // fetched on the Employees tab.
   useEffect(() => {
-    if (employee && tab === "employees") loadEmployees();
+    if (employee && (tab === "employees" || tab === "reports")) loadEmployees();
   }, [employee, tab]);
 
   // Auto-refresh live locations every 10s on the overview tab
@@ -1235,10 +1238,15 @@ export default function App() {
                 One person, one month, on a page — for a salary conversation.
               </p>
               <div style={{ display: "flex", gap: 8, alignItems: "center", marginTop: 10, flexWrap: "wrap" }}>
-                <select value={sumEmpId} onChange={(e) => setSumEmpId(e.target.value)} style={dateInp}>
-                  <option value="">Choose employee…</option>
+                <select value={sumEmpId} onChange={(e) => setSumEmpId(e.target.value)}
+                  style={{ ...dateInp, minWidth: 200 }}>
+                  <option value="">
+                    {employees.length ? "Choose employee…" : "Loading employees…"}
+                  </option>
                   {employees.filter((e) => e.role !== "admin").map((e) => (
-                    <option key={e.id} value={e.id}>{e.name}</option>
+                    <option key={e.id} value={e.id}>
+                      {e.name}{e.employee_code ? ` (${e.employee_code})` : ""}
+                    </option>
                   ))}
                 </select>
                 <input type="month" value={musterMonth} onChange={(e) => setMusterMonth(e.target.value)} style={dateInp} />
