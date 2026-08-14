@@ -7,8 +7,40 @@
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <style>
-      html, body, #root { margin: 0; height: 100%; background: #0F1117; }
-      * { -webkit-font-smoothing: antialiased; }
+      html, body, #root {
+        margin: 0; height: 100%; background: #0E1015;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, Roboto,
+                     "Helvetica Neue", Arial, sans-serif;
+        color: #E6EAF2;
+      }
+      * { -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; }
+
+      /* Data columns line up digit-under-digit. The single biggest readability
+         win on a dashboard that is mostly hours, times and rupees. */
+      table, input[type="date"], input[type="month"], input[type="time"], input[type="number"] {
+        font-variant-numeric: tabular-nums;
+        font-feature-settings: "tnum" 1;
+      }
+
+      /* Rows respond to the cursor so the eye can track across a wide table. */
+      tbody tr { transition: background 120ms ease; }
+      tbody tr:hover { background: rgba(79,142,247,0.06); }
+
+      /* Focus is visible for keyboard users without shouting on mouse click. */
+      button:focus-visible, input:focus-visible, select:focus-visible {
+        outline: 2px solid #4F8EF7; outline-offset: 1px;
+      }
+      input:focus, select:focus { border-color: #4F8EF7 !important; }
+
+      /* Scrollbars on the wide month tables shouldn't look like a system alert. */
+      ::-webkit-scrollbar { height: 10px; width: 10px; }
+      ::-webkit-scrollbar-track { background: #12151D; }
+      ::-webkit-scrollbar-thumb { background: #2B3345; border-radius: 6px; }
+      ::-webkit-scrollbar-thumb:hover { background: #3A445C; }
+
+      @media (prefers-reduced-motion: reduce) {
+        * { transition: none !important; animation: none !important; }
+      }
     </style>
   </head>
   <body>

@@ -5,7 +5,7 @@ import {
   Download, LogOut, RefreshCw, Trash2, Plus, Activity, UserPlus, Smartphone, Navigation, CalendarDays,
 } from "lucide-react";
 import { api, clearToken, getToken } from "./services/api";
-import { C, fmt, fmtDur, friendlyFlag, Card, Tag, inp } from "./components/ui";
+import { C, T, numeric, fmt, fmtDur, friendlyFlag, Card, Tag, inp } from "./components/ui";
 import LiveMap from "./components/LiveMap";
 import RadiusMap from "./components/RadiusMap";
 import Login from "./components/Login";
@@ -607,8 +607,10 @@ export default function App() {
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
             <MapPin size={24} color={C.accent} />
             <div>
-              <h1 style={{ color: C.text, fontSize: 20, margin: 0 }}>FieldTrack Admin</h1>
-              <p style={{ color: C.muted, fontSize: 12, margin: 0 }}>{dash?.date} · {dash?.active_now ?? 0} active in field</p>
+              <h1 style={{ color: C.text, ...T.h1, margin: 0 }}>FieldTrack Admin</h1>
+              <p style={{ color: C.muted, fontSize: 12, margin: "2px 0 0", ...numeric }}>
+                {dash?.date} · {dash?.active_now ?? 0} active in field
+              </p>
             </div>
           </div>
           <div style={{ display: "flex", gap: 8 }}>
@@ -630,21 +632,25 @@ export default function App() {
         {/* Stat cards */}
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(120px, 1fr))", gap: 12, marginBottom: 18 }}>
           {stats.map((s) => (
-            <Card key={s.label} style={{ padding: 14, textAlign: "center", cursor: "pointer" }}>
+            <Card key={s.label} style={{ padding: "13px 15px", cursor: "pointer" }}>
               <div onClick={() => openTile(s.key, s.label, s.color)}>
-                <s.icon size={16} color={s.color} style={{ marginBottom: 4 }} />
-                <div style={{ color: s.color, fontSize: 24, fontWeight: 700 }}>{s.value ?? "—"}</div>
-                <div style={{ color: C.muted, fontSize: 11 }}>{s.label}</div>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                  <span style={{ color: C.muted, ...T.label }}>{s.label}</span>
+                  <s.icon size={13} color={s.color} style={{ opacity: 0.75 }} />
+                </div>
+                <div style={{ color: s.color, fontSize: 26, fontWeight: 700, lineHeight: 1.15, marginTop: 6, ...numeric }}>
+                  {s.value ?? "—"}
+                </div>
               </div>
             </Card>
           ))}
         </div>
 
         {/* Tabs */}
-        <div style={{ display: "flex", gap: 4, background: C.surface, borderRadius: 12, padding: 4, border: `1px solid ${C.border}`, marginBottom: 16 }}>
+        <div style={{ display: "flex", gap: 2, background: C.surface, borderRadius: 9, padding: 3, border: `1px solid ${C.border}`, marginBottom: 16, overflowX: "auto" }}>
           {tabs.map((t) => (
             <button key={t.id} onClick={() => setTab(t.id)}
-              style={{ flex: 1, padding: "9px 0", borderRadius: 9, border: "none", cursor: "pointer", fontSize: 13, fontWeight: 600, background: tab === t.id ? C.card : "transparent", color: tab === t.id ? C.text : C.muted, display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
+              style={{ flex: 1, minWidth: 92, padding: "8px 10px", borderRadius: 7, border: "none", cursor: "pointer", fontSize: 12.5, fontWeight: 600, background: tab === t.id ? C.card : "transparent", color: tab === t.id ? C.text : C.muted, display: "flex", alignItems: "center", justifyContent: "center", gap: 6, whiteSpace: "nowrap", transition: "background 120ms ease, color 120ms ease" }}>
               <t.icon size={15} /> {t.label}
             </button>
           ))}
@@ -869,9 +875,9 @@ export default function App() {
                 <button key={id} onClick={() => setReportTab(id)}
                   style={{
                     ...btnSecondary,
-                    padding: "8px 14px",
-                    background: reportTab === id ? C.accent : C.surface,
-                    color: reportTab === id ? "#fff" : C.muted,
+                    padding: "7px 14px",
+                    background: reportTab === id ? C.accentLo : "transparent",
+                    color: reportTab === id ? C.text : C.muted,
                     borderColor: reportTab === id ? C.accent : C.border,
                     fontWeight: 600,
                   }}>
@@ -1702,12 +1708,20 @@ export default function App() {
   );
 }
 
-const h3 = { color: C.text, fontSize: 15, margin: "0 0 12px" };
-const rowStyle = { display: "flex", justifyContent: "space-between", alignItems: "center", padding: "11px 0", borderBottom: `1px solid ${C.border}` };
+const h3 = { color: C.text, ...T.h2, margin: "0 0 10px" };
+const rowStyle = { display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 0", borderBottom: `1px solid ${C.borderSoft}` };
 const avatar = { width: 36, height: 36, borderRadius: "50%", background: C.accentLo, color: C.accent, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: 700 };
-const btnSecondary = { background: C.surface, border: `1px solid ${C.border}`, borderRadius: 8, padding: "8px 12px", color: C.text, cursor: "pointer", display: "flex", alignItems: "center", gap: 6, fontSize: 13 };
-const btnPrimary = { background: C.accent, color: "#fff", border: "none", borderRadius: 8, padding: "7px 14px", fontSize: 13, fontWeight: 600, cursor: "pointer", display: "flex", alignItems: "center", gap: 6 };
-const dateInp = { background: C.surface, border: `1px solid ${C.border}`, borderRadius: 6, padding: "6px 8px", color: C.text, fontSize: 12 };
-const musterTh = { padding: "6px 4px", textAlign: "center", color: C.muted, fontSize: 11, fontWeight: 700, borderBottom: `1px solid ${C.border}`, whiteSpace: "nowrap" };
-const musterTd = { padding: "5px 4px", textAlign: "center", borderBottom: `1px solid ${C.border}`, color: C.text, whiteSpace: "nowrap" };
+const btnSecondary = { background: C.surface, border: `1px solid ${C.border}`, borderRadius: 7, padding: "7px 12px", color: C.text, cursor: "pointer", display: "flex", alignItems: "center", gap: 6, fontSize: 12.5, fontWeight: 500, lineHeight: 1.2 };
+const btnPrimary = { background: C.accent, color: "#fff", border: "none", borderRadius: 7, padding: "8px 15px", fontSize: 12.5, fontWeight: 600, cursor: "pointer", display: "flex", alignItems: "center", gap: 6, lineHeight: 1.2 };
+const dateInp = { background: C.surface, border: `1px solid ${C.border}`, borderRadius: 7, padding: "7px 10px", color: C.text, fontSize: 12.5, ...numeric, outline: "none" };
+const musterTh = {
+  padding: "9px 6px", textAlign: "center", color: C.muted,
+  fontSize: 10.5, fontWeight: 600, letterSpacing: "0.03em",
+  background: C.cardAlt, borderBottom: `1px solid ${C.border}`,
+  whiteSpace: "nowrap", position: "sticky", top: 0, zIndex: 1,
+};
+const musterTd = {
+  padding: "7px 6px", textAlign: "center", borderBottom: `1px solid ${C.borderSoft}`,
+  color: C.text, whiteSpace: "nowrap", ...numeric, fontSize: 12,
+};
 const tagInline = { fontSize: 10, fontWeight: 600, borderRadius: 4, padding: "1px 6px", marginLeft: 8 };

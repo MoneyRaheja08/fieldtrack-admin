@@ -1,8 +1,41 @@
 // Shared design tokens and small UI atoms.
+//
+// This is an operations dashboard: dense tables of times, hours and money that
+// someone scans quickly. So the palette is deliberately quiet — surfaces sit
+// close together in value and colour does one job only: green = counted/paid,
+// amber = needs attention, red = blocked or lost. Nothing else is coloured, so
+// a coloured cell always means something.
 export const C = {
-  bg: "#0F1117", surface: "#181C27", card: "#1E2335", border: "#2A3050",
-  accent: "#4F8EF7", accentLo: "#1A2E52", green: "#22C55E", red: "#EF4444",
-  amber: "#F59E0B", text: "#E8ECF4", muted: "#6B7A9F",
+  bg: "#0E1015",        // page — deepest, so cards lift off it
+  surface: "#161A23",   // inputs, chips, secondary buttons
+  card: "#1A1F2B",      // panels
+  cardAlt: "#1E2431",   // zebra rows / table headers
+  border: "#272E3D",    // neutral divider, not the old electric blue
+  borderSoft: "#1F2532",// hairline inside dense tables
+  accent: "#4F8EF7", accentLo: "#1A2E52",
+  green: "#22C55E", red: "#EF4444", amber: "#F59E0B",
+  text: "#E6EAF2",
+  muted: "#8592AD",     // lifted from #6B7A9F — the old one was hard to read
+  faint: "#5C6884",     // for de-emphasised meta only
+};
+
+// One type scale for the whole dashboard. `num` is the important one: tabular
+// figures make every hours/time/rupee column line up digit under digit, which
+// is the difference between a table you can scan and one you have to read.
+export const T = {
+  stack: '-apple-system, BlinkMacSystemFont, "Segoe UI", Inter, Roboto, "Helvetica Neue", Arial, sans-serif',
+  num: '"SF Mono", ui-monospace, "Roboto Mono", Menlo, Consolas, monospace',
+  h1: { fontSize: 20, fontWeight: 700, letterSpacing: "-0.01em" },
+  h2: { fontSize: 15, fontWeight: 650, letterSpacing: "-0.005em" },
+  body: { fontSize: 13.5, fontWeight: 400 },
+  small: { fontSize: 12, fontWeight: 400 },
+  label: { fontSize: 11, fontWeight: 600, letterSpacing: "0.04em", textTransform: "uppercase" },
+};
+
+// Numbers that should align in columns (hours, times, money).
+export const numeric = {
+  fontVariantNumeric: "tabular-nums",
+  fontFeatureSettings: '"tnum" 1',
 };
 
 // Parse a timestamp as UTC even if the backend omitted the trailing 'Z'.
@@ -39,18 +72,26 @@ export const friendlyFlag = (f = "") => {
 };
 
 export const Card = ({ children, style }) => (
-  <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 14, padding: 20, ...style }}>
+  <div style={{
+    background: C.card, border: `1px solid ${C.border}`, borderRadius: 10,
+    padding: "18px 20px", ...style,
+  }}>
     {children}
   </div>
 );
 
 export const Tag = ({ color, children }) => (
-  <span style={{ background: color + "22", color, borderRadius: 6, padding: "3px 10px", fontSize: 12, fontWeight: 600 }}>
+  <span style={{
+    background: color + "1A", color, border: `1px solid ${color}33`,
+    borderRadius: 5, padding: "2px 8px", fontSize: 11.5, fontWeight: 600,
+    whiteSpace: "nowrap",
+  }}>
     {children}
   </span>
 );
 
 export const inp = {
-  background: C.surface, border: `1px solid ${C.border}`, borderRadius: 6,
-  padding: "9px 10px", color: C.text, fontSize: 13, width: "100%", boxSizing: "border-box",
+  background: C.surface, border: `1px solid ${C.border}`, borderRadius: 7,
+  padding: "9px 11px", color: C.text, fontSize: 13, width: "100%",
+  boxSizing: "border-box", outline: "none",
 };
