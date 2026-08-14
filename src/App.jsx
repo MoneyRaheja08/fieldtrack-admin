@@ -1074,23 +1074,15 @@ export default function App() {
                         <td style={{ ...musterTd, color: C.green, fontWeight: 700 }}>{r.total_worked_hours}h</td>
                         <td style={{ ...musterTd, color: r.total_away_hours > 0 ? C.amber : C.muted, fontWeight: 600 }}>
                           {r.total_away_hours}h
-                          {r.capped_days > 0 && (
-                            <div style={{ color: C.red, fontSize: 10 }}>{r.capped_days} capped</div>
-                          )}
                         </td>
                         {Array.from({ length: wHours.days_in_month }, (_, i) => i + 1).map((d) => {
                           const day = r.days[String(d)] || { worked: 0, away: 0 };
                           const w = day.worked, a = day.away;
                           const fmt = (m) => m ? `${Math.floor(m / 60)}:${String(m % 60).padStart(2, "0")}` : "";
                           return (
-                            <td key={d} style={{ ...musterTd,
-                              background: day.capped ? "#3a1a1a" : a > 0 ? "#3a2f14" : (w > 0 ? "#12351f" : "transparent") }}
-                              title={day.capped ? "Capped — app was not running, so most of this span could not be verified" : undefined}>
-                              <div style={{ color: day.capped ? C.red : w > 0 ? C.green : C.muted, fontWeight: 600 }}>
-                                {fmt(w) || "—"}
-                              </div>
+                            <td key={d} style={{ ...musterTd, background: a > 0 ? "#3a2f14" : (w > 0 ? "#12351f" : "transparent") }}>
+                              <div style={{ color: w > 0 ? C.green : C.muted, fontWeight: 600 }}>{fmt(w) || "—"}</div>
                               {a > 0 && <div style={{ color: C.amber, fontSize: 10 }}>-{fmt(a)}</div>}
-                              {day.capped && <div style={{ color: C.red, fontSize: 9 }}>capped</div>}
                             </td>
                           );
                         })}
@@ -1178,8 +1170,8 @@ export default function App() {
                         </td>
                         <td style={{ ...musterTd, color: C.muted }}>{r.site}</td>
                         <td style={musterTd}>
-                          <Tag color={r.status === "Absent" ? C.red : r.capped ? C.red : r.is_late ? C.amber : C.green}>
-                            {r.capped ? "App off" : r.status}{r.is_late ? " · late" : ""}
+                          <Tag color={r.status === "Absent" ? C.red : r.is_late ? C.amber : C.green}>
+                            {r.status}{r.is_late ? " · late" : ""}
                           </Tag>
                         </td>
                       </tr>
