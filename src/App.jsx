@@ -40,6 +40,11 @@ export default function App() {
   const [reportTab, setReportTab] = useState("punch");   // which report is open
   const [healthList, setHealthList] = useState(null);
   const [wHours, setWHours] = useState(null);
+  const [punct, setPunct] = useState(null);
+  const [excs, setExcs] = useState(null);
+  const [otRep, setOtRep] = useState(null);
+  const [empSum, setEmpSum] = useState(null);
+  const [sumEmpId, setSumEmpId] = useState("");
   const [healthLoading, setHealthLoading] = useState(false);
   const [musterMonth, setMusterMonth] = useState(() => new Date().toISOString().slice(0, 7));
   const [payRange, setPayRange] = useState({ start: "", end: "" });
@@ -295,6 +300,24 @@ export default function App() {
 
   // Health check across ALL employees — including those clocked out or absent,
   // so you can diagnose "why were their hours low?" after the fact.
+  async function loadPunctuality() {
+    try { setPunct(null); setPunct(await api.punctuality(musterMonth)); }
+    catch (e) { setError("Punctuality failed: " + e.message); }
+  }
+  async function loadExceptions() {
+    try { setExcs(null); setExcs(await api.exceptionsReport(range.start, range.end)); }
+    catch (e) { setError("Exceptions failed: " + e.message); }
+  }
+  async function loadOvertime() {
+    try { setOtRep(null); setOtRep(await api.overtimeReport(musterMonth)); }
+    catch (e) { setError("Overtime failed: " + e.message); }
+  }
+  async function loadEmpSummary() {
+    if (!sumEmpId) { setError("Pick an employee first"); return; }
+    try { setEmpSum(null); setEmpSum(await api.employeeSummary(sumEmpId, musterMonth)); }
+    catch (e) { setError("Summary failed: " + e.message); }
+  }
+
   async function loadWorkingHours() {
     try {
       setWHours(null);
@@ -871,7 +894,7 @@ export default function App() {
         {tab === "reports" && (
           <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
             <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-              {[["punch", "Daily Punch"], ["hours", "Working Hours"], ["muster", "Muster"], ["health", "Health"]].map(([id, label]) => (
+              {[["punch", "Daily Punch"], ["hours", "Working Hours"], ["muster", "Muster"], ["late", "Late & Early"], ["exceptions", "Exceptions"], ["ot", "Overtime"], ["summary", "Employee Summary"], ["health", "Health"]].map(([id, label]) => (
                 <button key={id} onClick={() => setReportTab(id)}
                   style={{
                     ...btnSecondary,
@@ -1041,6 +1064,266 @@ export default function App() {
                 </table>
                 {wHours.rows.length === 0 && <p style={{ color: C.muted }}>No employees found.</p>}
               </Card>
+            )}
+          </div>
+        )}
+
+        {reportTab === "late" && (
+          <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+            <Card>
+              <h3 style={h3}>Late & Early-Leaving</h3>
+              <p style={{ color: C.muted, fontSize: 13, marginTop: -4 }}>
+                Measured against each person's own shift times. Worst first.
+              </p>
+              <div style={{ display: "flex", gap: 8, alignItems: "center", marginTop: 10 }}>
+                <input type="month" value={musterMonth} onChange={(e) => setMusterMonth(e.target.value)} style={dateInp} />
+                <button onClick={loadPunctuality} style={btnPrimary}>Load</button>
+              </div>
+              {punct && (
+                <div style={{ marginTop: 12, fontSize: 13, color: C.muted }}>
+                  <b style={{ color: C.amber, fontSize: 15 }}>{punct.total_late_days}</b> late arrivals ·{" "}
+                  <b style={{ color: C.amber, fontSize: 15 }}>{punct.total_late_hours}h</b> lost in total
+                </div>
+              )}
+            </Card>
+            {punct && (
+              <Card style={{ overflowX: "auto" }}>
+                <table style={{ borderCollapse: "collapse", width: "100%", fontSize: 13 }}>
+                  <thead><tr>
+                    {["Employee", "Days", "Late days", "Total late", "Avg late", "Worst", "Left early", "On time"].map((h, i) => (
+                      <th key={h} style={{ ...musterTh, textAlign: i === 0 ? "left" : "center" }}>{h}</th>
+                    ))}
+                  </tr></thead>
+                  <tbody>
+                    {punct.rows.map((r) => (
+                      <tr key={r.employee_id}>
+                        <td style={{ ...musterTd, textAlign: "left" }}>
+                          <div style={{ color: C.text, fontWeight: 600 }}>{r.name}</div>
+                          <div style={{ color: C.muted, fontSize: 11 }}>{r.job_title || r.code}</div>
+                        </td>
+                        <td style={musterTd}>{r.days_worked}</td>
+                        <td style={{ ...musterTd, color: r.late_days ? C.amber : C.muted, fontWeight: 700 }}>{r.late_days}</td>
+                        <td style={{ ...musterTd, color: r.late_minutes ? C.amber : C.muted }}>
+                          {Math.floor(r.late_minutes / 60)}h {r.late_minutes % 60}m
+                        </td>
+                        <td style={musterTd}>{r.avg_late_minutes}m</td>
+                        <td style={musterTd}>
+                          {r.worst_late ? `${r.worst_late}m` : "—"}
+                          {r.worst_late_date && <div style={{ color: C.muted, fontSize: 10 }}>{r.worst_late_date.slice(5)}</div>}
+                        </td>
+                        <td style={{ ...musterTd, color: r.early_days ? C.amber : C.muted }}>{r.early_days}</td>
+                        <td style={{ ...musterTd, color: r.punctuality_pct >= 90 ? C.green : r.punctuality_pct >= 70 ? C.amber : C.red, fontWeight: 700 }}>
+                          {r.punctuality_pct}%
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+                {punct.rows.length === 0 && <p style={{ color: C.muted }}>No attendance in this month.</p>}
+              </Card>
+            )}
+          </div>
+        )}
+
+        {reportTab === "exceptions" && (
+          <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+            <Card>
+              <h3 style={h3}>Exceptions</h3>
+              <p style={{ color: C.muted, fontSize: 13, marginTop: -4 }}>
+                Everything that needs a human look: forgotten clock-outs, admin edits,
+                location switched off, anti-cheat flags and blocked attempts.
+              </p>
+              <div style={{ display: "flex", gap: 8, alignItems: "center", marginTop: 10, flexWrap: "wrap" }}>
+                <input type="date" value={range.start} onChange={(e) => setRange({ ...range, start: e.target.value })} style={dateInp} />
+                <span style={{ color: C.muted }}>→</span>
+                <input type="date" value={range.end} onChange={(e) => setRange({ ...range, end: e.target.value })} style={dateInp} />
+                <button onClick={loadExceptions} style={btnPrimary}>Load</button>
+              </div>
+              {excs && (
+                <div style={{ marginTop: 12, fontSize: 13, color: C.muted }}>
+                  <b style={{ color: C.text, fontSize: 15 }}>{excs.total}</b> exceptions ·{" "}
+                  <b style={{ color: C.red, fontSize: 15 }}>{excs.high}</b> need attention
+                </div>
+              )}
+            </Card>
+            {excs && excs.by_person.length > 0 && (
+              <Card>
+                <h3 style={{ ...h3, fontSize: 13 }}>Most exceptions</h3>
+                {excs.by_person.slice(0, 6).map(([name, n]) => (
+                  <div key={name} style={rowStyle}>
+                    <span style={{ color: C.text, fontSize: 13 }}>{name}</span>
+                    <Tag color={n >= 5 ? C.red : C.amber}>{n}</Tag>
+                  </div>
+                ))}
+              </Card>
+            )}
+            {excs && (
+              <Card>
+                {excs.items.map((it, i) => (
+                  <div key={i} style={{
+                    borderLeft: `3px solid ${it.severity === "high" ? C.red : it.severity === "warn" ? C.amber : C.muted}`,
+                    paddingLeft: 12, marginBottom: 12,
+                  }}>
+                    <div style={{ color: C.text, fontSize: 13, fontWeight: 600 }}>
+                      {it.name} <span style={{ color: C.muted, fontWeight: 400 }}>· {it.date}</span>
+                    </div>
+                    <div style={{ color: it.severity === "high" ? C.red : C.amber, fontSize: 12 }}>
+                      {it.type}
+                    </div>
+                    <div style={{ color: C.muted, fontSize: 12 }}>{it.detail}</div>
+                  </div>
+                ))}
+                {excs.items.length === 0 && <p style={{ color: C.green }}>🎉 No exceptions in this period.</p>}
+              </Card>
+            )}
+          </div>
+        )}
+
+        {reportTab === "ot" && (
+          <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+            <Card>
+              <h3 style={h3}>Overtime</h3>
+              <p style={{ color: C.muted, fontSize: 13, marginTop: -4 }}>
+                Hours beyond each person's standard monthly hours, and what it costs.
+              </p>
+              <div style={{ display: "flex", gap: 8, alignItems: "center", marginTop: 10 }}>
+                <input type="month" value={musterMonth} onChange={(e) => setMusterMonth(e.target.value)} style={dateInp} />
+                <button onClick={loadOvertime} style={btnPrimary}>Load</button>
+              </div>
+              {otRep && (
+                <div style={{ marginTop: 12, fontSize: 13, color: C.muted }}>
+                  <b style={{ color: C.amber, fontSize: 15 }}>{otRep.total_overtime_hours}h</b> overtime ·{" "}
+                  <b style={{ color: C.green, fontSize: 15 }}>₹{otRep.total_overtime_cost.toLocaleString()}</b> cost
+                </div>
+              )}
+            </Card>
+            {otRep && (
+              <Card style={{ overflowX: "auto" }}>
+                <table style={{ borderCollapse: "collapse", width: "100%", fontSize: 13 }}>
+                  <thead><tr>
+                    {["Employee", "Standard", "Actual", "% of std", "Overtime", "Cost"].map((h, i) => (
+                      <th key={h} style={{ ...musterTh, textAlign: i === 0 ? "left" : "center" }}>{h}</th>
+                    ))}
+                  </tr></thead>
+                  <tbody>
+                    {otRep.rows.map((r) => (
+                      <tr key={r.employee_id}>
+                        <td style={{ ...musterTd, textAlign: "left", fontWeight: 600 }}>{r.name}</td>
+                        <td style={musterTd}>{r.standard_hours}h</td>
+                        <td style={musterTd}>{r.actual_hours}h</td>
+                        <td style={{ ...musterTd, color: r.over_pct > 100 ? C.amber : C.muted }}>{r.over_pct}%</td>
+                        <td style={{ ...musterTd, color: r.overtime_hours > 0 ? C.amber : C.muted, fontWeight: 700 }}>
+                          {r.overtime_hours}h
+                        </td>
+                        <td style={{ ...musterTd, color: r.overtime_cost > 0 ? C.green : C.muted, fontWeight: 600 }}>
+                          {r.overtime_cost > 0 ? `₹${r.overtime_cost.toLocaleString()}` : "—"}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </Card>
+            )}
+          </div>
+        )}
+
+        {reportTab === "summary" && (
+          <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+            <Card>
+              <h3 style={h3}>Employee Summary</h3>
+              <p style={{ color: C.muted, fontSize: 13, marginTop: -4 }}>
+                One person, one month, on a page — for a salary conversation.
+              </p>
+              <div style={{ display: "flex", gap: 8, alignItems: "center", marginTop: 10, flexWrap: "wrap" }}>
+                <select value={sumEmpId} onChange={(e) => setSumEmpId(e.target.value)} style={dateInp}>
+                  <option value="">Choose employee…</option>
+                  {employees.filter((e) => e.role !== "admin").map((e) => (
+                    <option key={e.id} value={e.id}>{e.name}</option>
+                  ))}
+                </select>
+                <input type="month" value={musterMonth} onChange={(e) => setMusterMonth(e.target.value)} style={dateInp} />
+                <button onClick={loadEmpSummary} style={btnPrimary}>Load</button>
+              </div>
+            </Card>
+
+            {empSum && (
+              <>
+                <Card>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: 8 }}>
+                    <div>
+                      <div style={{ color: C.text, fontSize: 18, fontWeight: 700 }}>{empSum.employee.name}</div>
+                      <div style={{ color: C.muted, fontSize: 12 }}>
+                        {empSum.employee.job_title || empSum.employee.code} · shift {empSum.employee.shift} · {empSum.month}
+                      </div>
+                    </div>
+                    <div style={{ textAlign: "right" }}>
+                      <div style={{ color: C.green, fontSize: 22, fontWeight: 700 }}>
+                        ₹{empSum.estimated_pay.toLocaleString()}
+                      </div>
+                      <div style={{ color: C.muted, fontSize: 11 }}>estimated pay</div>
+                    </div>
+                  </div>
+                </Card>
+
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: 10 }}>
+                  {[
+                    ["Days present", `${empSum.days_present} / ${empSum.working_days}`, C.accent],
+                    ["Worked", `${empSum.worked_hours}h`, C.green],
+                    ["Standard", `${empSum.standard_hours}h`, C.muted],
+                    ["Overtime", `${empSum.overtime_hours}h`, empSum.overtime_hours > 0 ? C.amber : C.muted],
+                    ["Away", `${empSum.away_hours}h`, empSum.away_hours > 0 ? C.amber : C.muted],
+                    ["Location off", `${empSum.location_off_hours}h`, empSum.location_off_hours > 0 ? C.red : C.muted],
+                    ["Late days", `${empSum.late_days}`, empSum.late_days > 0 ? C.amber : C.muted],
+                    ["Left early", `${empSum.early_days}`, empSum.early_days > 0 ? C.amber : C.muted],
+                  ].map(([label, val, col]) => (
+                    <Card key={label} style={{ padding: "12px 14px" }}>
+                      <div style={{ color: C.muted, ...T.label }}>{label}</div>
+                      <div style={{ color: col, fontSize: 20, fontWeight: 700, marginTop: 4, ...numeric }}>{val}</div>
+                    </Card>
+                  ))}
+                </div>
+
+                {empSum.exceptions.length > 0 && (
+                  <Card>
+                    <h3 style={{ ...h3, fontSize: 13, color: C.amber }}>Exceptions ({empSum.exceptions.length})</h3>
+                    {empSum.exceptions.map((x, i) => (
+                      <div key={i} style={rowStyle}>
+                        <span style={{ color: C.muted, fontSize: 12 }}>{x.date}</span>
+                        <span style={{ color: C.text, fontSize: 13 }}>{x.text}</span>
+                      </div>
+                    ))}
+                  </Card>
+                )}
+
+                <Card style={{ overflowX: "auto" }}>
+                  <h3 style={{ ...h3, fontSize: 13 }}>Day by day</h3>
+                  <table style={{ borderCollapse: "collapse", width: "100%", fontSize: 12.5 }}>
+                    <thead><tr>
+                      {["Date", "In", "Out", "Worked", "Away", "Late"].map((h, i) => (
+                        <th key={h} style={{ ...musterTh, textAlign: i === 0 ? "left" : "center" }}>{h}</th>
+                      ))}
+                    </tr></thead>
+                    <tbody>
+                      {empSum.days.map((d) => (
+                        <tr key={d.date}>
+                          <td style={{ ...musterTd, textAlign: "left" }}>{d.date.slice(5)}</td>
+                          <td style={musterTd}>{fmt(d.clock_in)}</td>
+                          <td style={musterTd}>{d.clock_out ? fmt(d.clock_out) : "—"}</td>
+                          <td style={{ ...musterTd, color: C.green, fontWeight: 600 }}>
+                            {Math.floor(d.worked_minutes / 60)}:{String(d.worked_minutes % 60).padStart(2, "0")}
+                          </td>
+                          <td style={{ ...musterTd, color: d.away_minutes ? C.amber : C.muted }}>
+                            {d.away_minutes ? `${Math.floor(d.away_minutes / 60)}:${String(d.away_minutes % 60).padStart(2, "0")}` : "—"}
+                          </td>
+                          <td style={{ ...musterTd, color: d.late_minutes ? C.amber : C.muted }}>
+                            {d.late_minutes ? `${d.late_minutes}m` : "—"}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </Card>
+              </>
             )}
           </div>
         )}

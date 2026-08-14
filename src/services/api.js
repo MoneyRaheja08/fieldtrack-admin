@@ -60,6 +60,10 @@ export const api = {
     return res.blob();
   },
   employeeDiagnostics: (empId) => request(`/admin/diagnostics/${empId}`),
+  punctuality: (month) => request(`/admin/report/punctuality?month=${month}`),
+  exceptionsReport: (start, end) => request(`/admin/report/exceptions?start=${start}&end=${end}`),
+  overtimeReport: (month) => request(`/admin/report/overtime?month=${month}`),
+  employeeSummary: (id, month) => request(`/admin/report/employee-summary?employee_id=${id}&month=${month}`),
   workingHours: (month) => request(`/admin/working-hours?month=${month}`),
   workingHoursExport: async (month) => {
     const res = await fetch(`${BASE_URL}/admin/working-hours/export?month=${month}`, {
