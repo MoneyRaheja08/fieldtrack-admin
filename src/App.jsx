@@ -45,6 +45,10 @@ export default function App() {
   const [otRep, setOtRep] = useState(null);
   const [empSum, setEmpSum] = useState(null);
   const [sumEmpId, setSumEmpId] = useState("");
+  const [master, setMaster] = useState(null);
+  const [masterPage, setMasterPage] = useState(1);
+  const [masterEmp, setMasterEmp] = useState("");
+  const [masterStatus, setMasterStatus] = useState("");
   const [healthLoading, setHealthLoading] = useState(false);
   const [musterMonth, setMusterMonth] = useState(() => new Date().toISOString().slice(0, 7));
   const [payRange, setPayRange] = useState({ start: "", end: "" });
@@ -300,6 +304,27 @@ export default function App() {
 
   // Health check across ALL employees — including those clocked out or absent,
   // so you can diagnose "why were their hours low?" after the fact.
+  async function loadMaster(page = 1) {
+    try {
+      setMaster(null);
+      setMasterPage(page);
+      setMaster(await api.attendanceMaster(range.start, range.end, {
+        page, employeeId: masterEmp || undefined, status: masterStatus || undefined,
+      }));
+    } catch (e) { setError("Attendance Master failed: " + e.message); }
+  }
+  async function exportMaster() {
+    try {
+      const blob = await api.attendanceMasterExport(range.start, range.end, {
+        employeeId: masterEmp || undefined, status: masterStatus || undefined,
+      });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url; a.download = `attendance_master_${range.start}_to_${range.end}.xlsx`; a.click();
+      URL.revokeObjectURL(url);
+    } catch (e) { setError("Export failed: " + e.message); }
+  }
+
   async function loadPunctuality() {
     try { setPunct(null); setPunct(await api.punctuality(musterMonth)); }
     catch (e) { setError("Punctuality failed: " + e.message); }
@@ -897,7 +922,7 @@ export default function App() {
         {tab === "reports" && (
           <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
             <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-              {[["punch", "Daily Punch"], ["hours", "Working Hours"], ["muster", "Muster"], ["late", "Late & Early"], ["exceptions", "Exceptions"], ["ot", "Overtime"], ["summary", "Employee Summary"], ["health", "Health"]].map(([id, label]) => (
+              {[["master", "Attendance Master"], ["punch", "Daily Punch"], ["hours", "Working Hours"], ["muster", "Muster"], ["late", "Late & Early"], ["exceptions", "Exceptions"], ["ot", "Overtime"], ["summary", "Employee Summary"], ["health", "Health"]].map(([id, label]) => (
                 <button key={id} onClick={() => setReportTab(id)}
                   style={{
                     ...btnSecondary,
@@ -1066,6 +1091,110 @@ export default function App() {
                   </tbody>
                 </table>
                 {wHours.rows.length === 0 && <p style={{ color: C.muted }}>No employees found.</p>}
+              </Card>
+            )}
+          </div>
+        )}
+
+        {reportTab === "master" && (
+          <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+            <Card>
+              <h3 style={h3}>Attendance Master</h3>
+              <p style={{ color: C.muted, fontSize: 13, marginTop: -4 }}>
+                One row per employee per day, including days they were absent —
+                the full record to scroll, filter or export.
+              </p>
+              <div style={{ display: "flex", gap: 8, alignItems: "center", marginTop: 10, flexWrap: "wrap" }}>
+                <input type="date" value={range.start}
+                  onChange={(e) => setRange({ ...range, start: e.target.value })} style={dateInp} />
+                <span style={{ color: C.muted }}>→</span>
+                <input type="date" value={range.end}
+                  onChange={(e) => setRange({ ...range, end: e.target.value })} style={dateInp} />
+                <select value={masterEmp} onChange={(e) => setMasterEmp(e.target.value)} style={dateInp}>
+                  <option value="">All employees</option>
+                  {employees.filter((e) => e.role !== "admin").map((e) => (
+                    <option key={e.id} value={e.id}>{e.name}</option>
+                  ))}
+                </select>
+                <select value={masterStatus} onChange={(e) => setMasterStatus(e.target.value)} style={dateInp}>
+                  <option value="">All statuses</option>
+                  <option value="present">Present only</option>
+                  <option value="absent">Absent only</option>
+                  <option value="late">Late only</option>
+                </select>
+                <button onClick={() => loadMaster(1)} style={btnPrimary}>Search</button>
+                {master && (
+                  <button onClick={exportMaster} style={{ ...btnSecondary, display: "flex", alignItems: "center", gap: 6 }}>
+                    <Download size={14} /> Excel
+                  </button>
+                )}
+              </div>
+              {master && (
+                <div style={{ display: "flex", gap: 16, flexWrap: "wrap", marginTop: 12, fontSize: 13, color: C.muted }}>
+                  <span><b style={{ color: C.green }}>{master.summary.present_rows}</b> present</span>
+                  <span><b style={{ color: C.red }}>{master.summary.absent_rows}</b> absent</span>
+                  <span><b style={{ color: C.amber }}>{master.summary.late_rows}</b> late</span>
+                  <span><b style={{ color: C.text }}>{master.summary.total_hours}h</b> total</span>
+                </div>
+              )}
+            </Card>
+
+            {master && (
+              <Card style={{ overflowX: "auto" }}>
+                <table style={{ borderCollapse: "collapse", width: "100%", fontSize: 12.5 }}>
+                  <thead><tr>
+                    {["Employee", "Date", "Day", "First", "Last", "Worked", "Away", "Site", "Status"].map((h, i) => (
+                      <th key={h} style={{ ...musterTh, textAlign: i === 0 ? "left" : "center" }}>{h}</th>
+                    ))}
+                  </tr></thead>
+                  <tbody>
+                    {master.rows.map((r, i) => (
+                      <tr key={`${r.employee_id}-${r.date}-${i}`}>
+                        <td style={{ ...musterTd, textAlign: "left" }}>
+                          <div style={{ color: C.text, fontWeight: 600 }}>{r.name}</div>
+                          <div style={{ color: C.muted, fontSize: 10.5 }}>{r.job_title || r.code}</div>
+                        </td>
+                        <td style={musterTd}>{r.date.slice(5)}</td>
+                        <td style={{ ...musterTd, color: C.muted }}>{r.day.slice(0, 3)}</td>
+                        <td style={musterTd}>{r.first_punch || "—"}</td>
+                        <td style={musterTd}>{r.last_punch || "—"}</td>
+                        <td style={{ ...musterTd, color: r.working_minutes ? C.green : C.muted, fontWeight: 600 }}>
+                          {r.working_minutes
+                            ? `${Math.floor(r.working_minutes / 60)}:${String(r.working_minutes % 60).padStart(2, "0")}`
+                            : "—"}
+                        </td>
+                        <td style={{ ...musterTd, color: r.away_minutes ? C.amber : C.muted }}>
+                          {r.away_minutes
+                            ? `${Math.floor(r.away_minutes / 60)}:${String(r.away_minutes % 60).padStart(2, "0")}`
+                            : "—"}
+                        </td>
+                        <td style={{ ...musterTd, color: C.muted }}>{r.site}</td>
+                        <td style={musterTd}>
+                          <Tag color={r.status === "Absent" ? C.red : r.is_late ? C.amber : C.green}>
+                            {r.status}{r.is_late ? " · late" : ""}
+                          </Tag>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 14, flexWrap: "wrap", gap: 8 }}>
+                  <span style={{ color: C.muted, fontSize: 12 }}>
+                    Showing {(master.page - 1) * master.page_size + 1}–
+                    {Math.min(master.page * master.page_size, master.total)} of {master.total}
+                  </span>
+                  <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                    <button onClick={() => loadMaster(master.page - 1)} disabled={master.page <= 1}
+                      style={{ ...btnSecondary, opacity: master.page <= 1 ? 0.4 : 1 }}>Previous</button>
+                    <span style={{ color: C.text, fontSize: 12.5, padding: "0 6px" }}>
+                      {master.page} / {master.pages}
+                    </span>
+                    <button onClick={() => loadMaster(master.page + 1)} disabled={master.page >= master.pages}
+                      style={{ ...btnSecondary, opacity: master.page >= master.pages ? 0.4 : 1 }}>Next</button>
+                  </div>
+                </div>
+                {master.rows.length === 0 && <p style={{ color: C.muted }}>No rows match these filters.</p>}
               </Card>
             )}
           </div>

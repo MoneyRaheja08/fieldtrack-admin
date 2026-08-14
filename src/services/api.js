@@ -60,6 +60,22 @@ export const api = {
     return res.blob();
   },
   employeeDiagnostics: (empId) => request(`/admin/diagnostics/${empId}`),
+  attendanceMaster: (start, end, opts = {}) => {
+    const q = new URLSearchParams({ start, end, page: opts.page || 1, page_size: opts.pageSize || 50 });
+    if (opts.employeeId) q.set("employee_id", opts.employeeId);
+    if (opts.status) q.set("status", opts.status);
+    return request(`/admin/report/attendance-master?${q}`);
+  },
+  attendanceMasterExport: async (start, end, opts = {}) => {
+    const q = new URLSearchParams({ start, end });
+    if (opts.employeeId) q.set("employee_id", opts.employeeId);
+    if (opts.status) q.set("status", opts.status);
+    const res = await fetch(`${BASE_URL}/admin/report/attendance-master/export?${q}`, {
+      headers: { Authorization: `Bearer ${getToken()}` },
+    });
+    if (!res.ok) throw new Error("Export failed");
+    return res.blob();
+  },
   punctuality: (month) => request(`/admin/report/punctuality?month=${month}`),
   exceptionsReport: (start, end) => request(`/admin/report/exceptions?start=${start}&end=${end}`),
   overtimeReport: (month) => request(`/admin/report/overtime?month=${month}`),
