@@ -76,6 +76,7 @@ export const api = {
     if (!res.ok) throw new Error("Export failed");
     return res.blob();
   },
+  timeAnalysis: (month) => request(`/admin/report/time-analysis?month=${month}`),
   punctuality: (month) => request(`/admin/report/punctuality?month=${month}`),
   exceptionsReport: (start, end) => request(`/admin/report/exceptions?start=${start}&end=${end}`),
   overtimeReport: (month) => request(`/admin/report/overtime?month=${month}`),

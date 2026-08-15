@@ -46,6 +46,7 @@ export default function App() {
   const [empSum, setEmpSum] = useState(null);
   const [sumEmpId, setSumEmpId] = useState("");
   const [master, setMaster] = useState(null);
+  const [tAnalysis, setTAnalysis] = useState(null);
   const [masterPage, setMasterPage] = useState(1);
   const [masterEmp, setMasterEmp] = useState("");
   const [masterStatus, setMasterStatus] = useState("");
@@ -304,6 +305,11 @@ export default function App() {
 
   // Health check across ALL employees — including those clocked out or absent,
   // so you can diagnose "why were their hours low?" after the fact.
+  async function loadTimeAnalysis() {
+    try { setTAnalysis(null); setTAnalysis(await api.timeAnalysis(musterMonth)); }
+    catch (e) { setError("Time analysis failed: " + e.message); }
+  }
+
   async function loadMaster(page = 1) {
     try {
       setMaster(null);
@@ -922,7 +928,7 @@ export default function App() {
         {tab === "reports" && (
           <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
             <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-              {[["master", "Attendance Master"], ["punch", "Daily Punch"], ["hours", "Working Hours"], ["muster", "Muster"], ["late", "Late & Early"], ["exceptions", "Exceptions"], ["ot", "Overtime"], ["summary", "Employee Summary"], ["health", "Health"]].map(([id, label]) => (
+              {[["master", "Attendance Master"], ["timecalc", "Time Analysis"], ["punch", "Daily Punch"], ["hours", "Working Hours"], ["muster", "Muster"], ["late", "Late & Early"], ["exceptions", "Exceptions"], ["ot", "Overtime"], ["summary", "Employee Summary"], ["health", "Health"]].map(([id, label]) => (
                 <button key={id} onClick={() => setReportTab(id)}
                   style={{
                     ...btnSecondary,
@@ -1092,6 +1098,114 @@ export default function App() {
                 </table>
                 {wHours.rows.length === 0 && <p style={{ color: C.muted }}>No employees found.</p>}
               </Card>
+            )}
+          </div>
+        )}
+
+        {reportTab === "timecalc" && (
+          <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+            <Card>
+              <h3 style={h3}>Time Analysis</h3>
+              <p style={{ color: C.muted, fontSize: 13, marginTop: -4, lineHeight: 1.55 }}>
+                Every way of measuring the same month, side by side — so you can choose a payroll
+                basis with the numbers in front of you. <b style={{ color: C.text }}>Nothing here
+                changes what is paid.</b> Payroll still uses the <b style={{ color: C.green }}>Net</b> column.
+              </p>
+              <div style={{ display: "flex", gap: 8, alignItems: "center", marginTop: 10 }}>
+                <input type="month" value={musterMonth} onChange={(e) => setMusterMonth(e.target.value)} style={dateInp} />
+                <button onClick={loadTimeAnalysis} style={btnPrimary}>Load</button>
+              </div>
+            </Card>
+
+            <Card>
+              <h3 style={{ ...h3, fontSize: 13 }}>What the columns mean</h3>
+              {[
+                ["Gross", C.muted, "Clock-out minus clock-in. No deductions at all."],
+                ["Away", C.amber, "Outside the job site. Needs the app alive to be detected."],
+                ["Loc off", C.red, "Location switched off."],
+                ["Net", C.green, "Gross − away − location-off. This is what payroll pays today."],
+                ["Verified", C.accent, "Actually proven by presence pings from the phone."],
+                ["Unverified", C.red, "Net minus Verified — clocked in, but the app wasn't reporting."],
+                ["Capped", C.text, "Verified + 90 min/day allowance. The strict option, if you want it."],
+              ].map(([k, col, desc]) => (
+                <div key={k} style={{ display: "flex", gap: 10, padding: "5px 0", fontSize: 12.5 }}>
+                  <span style={{ color: col, fontWeight: 700, minWidth: 76 }}>{k}</span>
+                  <span style={{ color: C.muted }}>{desc}</span>
+                </div>
+              ))}
+            </Card>
+
+            {tAnalysis && (
+              <>
+                <Card>
+                  <div style={{ display: "flex", gap: 22, flexWrap: "wrap", fontSize: 13 }}>
+                    <span style={{ color: C.muted }}>Net (paid today){" "}
+                      <b style={{ color: C.green, fontSize: 16 }}>{tAnalysis.totals.net_hours}h</b></span>
+                    <span style={{ color: C.muted }}>Verified{" "}
+                      <b style={{ color: C.accent, fontSize: 16 }}>{tAnalysis.totals.verified_hours}h</b></span>
+                    <span style={{ color: C.muted }}>Unverified{" "}
+                      <b style={{ color: C.red, fontSize: 16 }}>{tAnalysis.totals.unverified_hours}h</b></span>
+                    <span style={{ color: C.muted }}>If capped{" "}
+                      <b style={{ color: C.text, fontSize: 16 }}>{tAnalysis.totals.capped_hours}h</b></span>
+                    <span style={{ color: C.muted }}>Difference{" "}
+                      <b style={{ color: C.amber, fontSize: 16 }}>{tAnalysis.totals.difference_hours}h</b></span>
+                  </div>
+                </Card>
+
+                <Card style={{ overflowX: "auto" }}>
+                  <table style={{ borderCollapse: "collapse", width: "100%", fontSize: 12.5 }}>
+                    <thead><tr>
+                      {["Employee", "Days", "Gross", "Away", "Loc off", "Net", "Verified", "Unverified", "% verified", "If capped", "Diff"].map((h, i) => (
+                        <th key={h} style={{ ...musterTh, textAlign: i === 0 ? "left" : "center" }}>{h}</th>
+                      ))}
+                    </tr></thead>
+                    <tbody>
+                      {tAnalysis.rows.map((r) => (
+                        <tr key={r.employee_id}>
+                          <td style={{ ...musterTd, textAlign: "left" }}>
+                            <div style={{ color: C.text, fontWeight: 600 }}>{r.name}</div>
+                            <div style={{ color: C.muted, fontSize: 10.5 }}>
+                              {r.job_title || r.code}
+                              {r.silent_days > 0 && (
+                                <span style={{ color: C.red }}> · {r.silent_days} silent days</span>
+                              )}
+                            </div>
+                          </td>
+                          <td style={musterTd}>{r.days}</td>
+                          <td style={{ ...musterTd, color: C.muted }}>{r.gross_hours}</td>
+                          <td style={{ ...musterTd, color: r.away_hours ? C.amber : C.muted }}>{r.away_hours}</td>
+                          <td style={{ ...musterTd, color: r.loc_off_hours ? C.red : C.muted }}>{r.loc_off_hours}</td>
+                          <td style={{ ...musterTd, color: C.green, fontWeight: 700 }}>{r.net_hours}</td>
+                          <td style={{ ...musterTd, color: C.accent, fontWeight: 600 }}>{r.verified_hours}</td>
+                          <td style={{ ...musterTd, color: r.unverified_hours > 5 ? C.red : C.muted, fontWeight: r.unverified_hours > 5 ? 700 : 400 }}>
+                            {r.unverified_hours}
+                          </td>
+                          <td style={{ ...musterTd, color: r.verified_pct >= 80 ? C.green : r.verified_pct >= 50 ? C.amber : C.red, fontWeight: 700 }}>
+                            {r.verified_pct}%
+                          </td>
+                          <td style={musterTd}>{r.capped_hours}</td>
+                          <td style={{ ...musterTd, color: r.difference_hours > 0 ? C.amber : C.muted }}>
+                            {r.difference_hours > 0 ? `−${r.difference_hours}` : "—"}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                  {tAnalysis.rows.length === 0 && <p style={{ color: C.muted }}>No attendance this month.</p>}
+                </Card>
+
+                <Card>
+                  <p style={{ color: C.muted, fontSize: 12.5, lineHeight: 1.6, margin: 0 }}>
+                    <b style={{ color: C.text }}>How to read this:</b> look at the{" "}
+                    <b style={{ color: C.red }}>% verified</b> column. Someone in the 80–100% range has
+                    their app running properly and their Net figure is trustworthy. Someone low —
+                    with several "silent days" — was clocked in while their phone reported nothing,
+                    so their Net hours rest on the punch times alone. The{" "}
+                    <b style={{ color: C.amber }}>Diff</b> column shows what each person would lose
+                    if you switched payroll to the capped basis.
+                  </p>
+                </Card>
+              </>
             )}
           </div>
         )}
